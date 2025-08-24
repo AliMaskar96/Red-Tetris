@@ -1,0 +1,12 @@
+*~
+*.swp
+*.swo
+log
+tmp
+node_modules
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+.env.test.local

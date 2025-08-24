@@ -1,0 +1,329 @@
+body, html {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background: linear-gradient(135deg, #232526 0%, #414345 100%);
+  color: #fff;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+.game-lobby {
+  background: rgba(34, 34, 34, 0.98);
+  border-radius: 18px;
+  box-shadow: 0 4px 32px #000a;
+  padding: 40px 48px;
+  margin-top: 60px;
+  min-width: 340px;
+  text-align: center;
+}
+.game-lobby h2 {
+  color: #FFD700;
+  font-size: 2.2rem;
+  margin-bottom: 10px;
+}
+.game-lobby ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 18px 0;
+}
+.game-lobby li {
+  font-size: 1.1rem;
+  margin: 6px 0;
+  padding: 4px 0;
+  border-bottom: 1px solid #3335;
+}
+.game-lobby button {
+  background: linear-gradient(90deg, #28a745 60%, #43e97b 100%);
+  color: #fff;
+  font-weight: bold;
+  font-size: 1.2rem;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 36px;
+  box-shadow: 0 2px 8px #0006;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.game-lobby button:hover {
+  background: linear-gradient(90deg, #43e97b 60%, #28a745 100%);
+}
+
+.opponents-list {
+  background: rgba(34, 34, 34, 0.92);
+  border-radius: 14px;
+  box-shadow: 0 2px 12px #0007;
+  padding: 18px 28px;
+  margin: 18px 0 0 0;
+  min-width: 260px;
+}
+.opponents-list h3 {
+  color: #FFD700;
+  font-size: 1.3rem;
+  margin-bottom: 8px;
+}
+.opponents-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.opponents-list li {
+  font-size: 1rem;
+  margin: 5px 0;
+  padding: 3px 0;
+  border-bottom: 1px solid #3335;
+}
+
+.controls {
+  background: rgba(34, 34, 34, 0.92);
+  border-radius: 14px;
+  box-shadow: 0 2px 12px #0007;
+  padding: 18px 28px;
+  margin: 18px 0 0 0;
+  min-width: 260px;
+  text-align: left;
+}
+.controls h3 {
+  color: #FFD700;
+  font-size: 1.3rem;
+  margin-bottom: 8px;
+}
+.controls ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.controls li {
+  font-size: 1rem;
+  margin: 5px 0;
+  padding: 3px 0;
+}
+
+.player-grid {
+  background: rgba(34, 34, 34, 0.92);
+  border-radius: 14px;
+  box-shadow: 0 2px 12px #0007;
+  padding: 18px 28px;
+  margin: 18px 0 0 0;
+  min-width: 260px;
+  text-align: center;
+}
+.player-grid h4 {
+  color: #43e97b;
+  font-size: 1.1rem;
+  margin-bottom: 8px;
+}
+.player-grid .grid {
+  display: grid;
+  grid-template-rows: repeat(20, 12px);
+  grid-template-columns: repeat(10, 12px);
+  gap: 1px;
+  margin: 0 auto 8px auto;
+}
+.player-grid .grid-row {
+  display: contents;
+}
+.player-grid .grid-cell {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: #222;
+}
+.player-grid .spectrum {
+  color: #FFD700;
+  font-size: 0.95rem;
+  margin-top: 6px;
+}
+
+/* --- Avatars --- */
+.player-avatar, .opponent-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  color: #232526;
+  font-weight: bold;
+  font-size: 1.1rem;
+  border-radius: 50%;
+  margin-right: 10px;
+  box-shadow: 0 2px 8px #0003;
+  border: 2px solid #FFD70022;
+}
+.player-avatar-large {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  color: #232526;
+  font-weight: bold;
+  font-size: 1.5rem;
+  border-radius: 50%;
+  margin-right: 12px;
+  box-shadow: 0 2px 8px #0003;
+  border: 2.5px solid #FFD70033;
+}
+
+/* --- GameLobby --- */
+.lobby-icon {
+  margin-bottom: 8px;
+}
+.room-id-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.room-id {
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  background: #333;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 1.1rem;
+  letter-spacing: 1px;
+}
+.copy-room-btn {
+  background: #232526;
+  color: #FFD700;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.copy-room-btn:hover {
+  background: #FFD700;
+  color: #232526;
+}
+.player-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 18px 0;
+}
+.player-list-item {
+  display: flex;
+  align-items: center;
+  font-size: 1.1rem;
+  margin: 6px 0;
+  padding: 4px 0;
+  border-bottom: 1px solid #3335;
+  gap: 8px;
+}
+.leader-badge {
+  margin-left: 8px;
+  font-size: 1.1rem;
+  color: #FFD700;
+  vertical-align: middle;
+}
+.start-game-btn {
+  background: linear-gradient(90deg, #28a745 60%, #43e97b 100%);
+  color: #fff;
+  font-weight: bold;
+  font-size: 1.2rem;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 36px;
+  box-shadow: 0 2px 8px #0006;
+  cursor: pointer;
+  margin-top: 18px;
+  transition: background 0.2s, transform 0.2s;
+}
+.start-game-btn.animated:hover {
+  background: linear-gradient(90deg, #43e97b 60%, #28a745 100%);
+  transform: scale(1.06);
+}
+
+/* --- OpponentsList --- */
+.opponent-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.opponent-list-item {
+  display: flex;
+  align-items: center;
+  font-size: 1rem;
+  margin: 5px 0;
+  padding: 3px 0;
+  border-bottom: 1px solid #3335;
+  gap: 8px;
+}
+.opponent-name {
+  font-weight: 500;
+  margin-right: 8px;
+}
+
+/* --- Spectrum Bar Chart --- */
+.spectrum-bar-chart {
+  display: flex;
+  align-items: flex-end;
+  height: 32px;
+  margin-left: 8px;
+  gap: 2px;
+}
+.spectrum-bar {
+  width: 6px;
+  min-height: 2px;
+  background: linear-gradient(180deg, #FFD700 60%, #43e97b 100%);
+  border-radius: 2px 2px 0 0;
+  box-shadow: 0 1px 2px #0002;
+  transition: height 0.2s;
+}
+
+/* --- PlayerGrid --- */
+.player-grid.enhanced {
+  border: 2.5px solid #43e97b;
+  box-shadow: 0 4px 24px #0008;
+  padding-top: 18px;
+  margin-bottom: 18px;
+}
+.player-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+/* --- Controls --- */
+.controls-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.controls-list-item {
+  display: flex;
+  align-items: center;
+  font-size: 1rem;
+  margin: 8px 0;
+  gap: 12px;
+}
+.control-icon {
+  font-size: 1.3rem;
+  margin-right: 6px;
+  filter: drop-shadow(0 1px 2px #0005);
+}
+.control-text {
+  font-size: 1rem;
+}
+
+/* --- Animations --- */
+.fade-in {
+  animation: fadeIn 0.7s cubic-bezier(0.4,0,0.2,1);
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  background: #232526;
+}
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 8px;
+} 

@@ -1,0 +1,29 @@
+/* URL Hash-based room navigation styles */
+@keyframes fadeOut {
+  0% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; visibility: hidden; }
+}
+
+@keyframes pulseRed {
+  0% { 
+    transform: translate(-50%, -50%) scale(0.8);
+    opacity: 0;
+  }
+  50% { 
+    transform: translate(-50%, -50%) scale(1.1);
+    opacity: 1;
+  }
+  100% { 
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+}
+
+.url-notification {
+  animation: fadeOut 3s forwards;
+}
+
+.url-notification-error {
+  animation: fadeOut 4s forwards;
+}

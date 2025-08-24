@@ -1,0 +1,37 @@
+.tetris-board {
+  display: grid;
+  grid-template-rows: repeat(20, 26px);
+  grid-template-columns: repeat(10, 26px);
+  gap: 1px;
+  background: #222;
+  width: max-content;
+  margin: 20px auto;
+}
+
+.cell {
+  width: 26px;
+  height: 26px;
+  background: #111;
+  border-radius: 2px;
+}
+
+.cell-0 {
+  background: #111;
+}
+/* Couleurs des pièces Tetris */
+.cell-1 { background: cyan; }
+.cell-2 { background: yellow; }
+.cell-3 { background: purple; }
+.cell-4 { background: limegreen; }
+.cell-5 { background: red; }
+.cell-6 { background: blue; }
+.cell-7 { background: orange; }
+
+/* Penalty lines - indestructible gray blocks */
+.cell-9 { 
+  background: #666; 
+  border: 2px solid #888;
+  box-shadow: inset 0 0 4px rgba(0,0,0,0.5);
+}
+
+/* Ajoute d'autres classes cell-X pour les couleurs des pièces */

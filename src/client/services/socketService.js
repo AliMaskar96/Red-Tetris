@@ -11,7 +11,11 @@ class SocketService {
     
     this.socket = io('http://localhost:3004', {
       autoConnect: true,
-      transports: ['websocket']
+      transports: ['websocket'],
+      reconnection: true, // Enable reconnection
+      reconnectionAttempts: 10, // Try up to 10 times
+      reconnectionDelay: 1000, // Start with 1s delay
+      reconnectionDelayMax: 5000 // Max 5s delay
     });
 
     this.socket.on('connect', () => {
@@ -26,6 +30,17 @@ class SocketService {
 
     this.socket.on('connect_error', (error) => {
       console.error('Connection error:', error);
+    });
+
+    // --- Reconnection event listeners ---
+    this.socket.on('reconnect_attempt', (attempt) => {
+      console.warn(`Reconnection attempt #${attempt}`);
+    });
+    this.socket.on('reconnect', (attempt) => {
+      console.info(`Successfully reconnected on attempt #${attempt}`);
+    });
+    this.socket.on('reconnect_failed', () => {
+      console.error('Reconnection failed after maximum attempts');
     });
   }
 

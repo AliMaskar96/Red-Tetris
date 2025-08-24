@@ -107,18 +107,18 @@
 - [ ] Add Redux DevTools integration // Not implemented
 
 ### Task 4.3: Socket Client Integration
-- [ ] Create socket client connection manager // Not implemented
-- [ ] Implement socket event listeners // Not implemented
-- [ ] Add connection error handling // Not implemented
+- [x] Create socket client connection manager // Implemented: see src/client/services/socketService.js
+- [x] Implement socket event listeners // Implemented: see socketService.js and useEffect hooks in app.js
+- [x] Add connection error handling // Implemented: see socketService.js (connect_error, disconnect)
 - [ ] Create socket middleware for Redux // Not implemented
-- [ ] Add reconnection logic // Not implemented
+- [x] Add reconnection logic // Implemented: custom reconnection options and event listeners in socketService.js
 
 ### Task 4.4: URL-based Room System
-- [ ] Parse hash-based URL for room and player name // Not implemented
-- [ ] Implement room joining from URL // Not implemented
-- [ ] Add URL update on room changes // Not implemented
-- [ ] Handle invalid URL formats // Not implemented
-- [ ] Add navigation between rooms // Not implemented
+- [x] Parse hash-based URL for room and player name // Implemented: see useEffect and parseHashUrl in app.js
+- [x] Implement room joining from URL // Implemented: auto-join logic in useEffect
+- [x] Add URL update on room changes // Implemented: useEffect updates window.location.hash
+- [x] Handle invalid URL formats // Implemented: console.warn in parseHashUrl
+- [ ] Add navigation between rooms // Not implemented: no UI for switching between rooms, only hash change and join logic
 
 ## 🎯 Phase 5: Game Features Implementation
 
@@ -140,19 +140,19 @@
 - [ ] Style penalty lines differently // Not implemented
 
 ### Task 5.3: Multiplayer Features
-- [ ] Display opponent names list // Not implemented
-- [ ] Show opponent field spectra // Not implemented
-- [ ] Update spectra in real-time // Not implemented
-- [ ] Handle penalty line reception // Not implemented
-- [ ] Show game status updates // Not implemented
-- [ ] Display winner announcement // Not implemented
+- [x] Display opponent names list // Implemented: OpponentsList component, app.js
+- [x] Show opponent field spectra // Implemented: OpponentsList, SpectrumDisplay, app.js
+- [x] Update spectra in real-time // Implemented: socketService.onPlayerBoardUpdated, app.js
+- [x] Handle penalty line reception // Implemented: socketService.onPenaltyLines, app.js
+- [~] Show game status updates // Partially implemented: some status shown, but not a full status system
+- [x] Display winner announcement // Implemented: socketService.onGameEnd, app.js, sets gameWinner and multiplayerGameEnded
 
 ### Task 5.4: Game State Management
-- [ ] Handle waiting room state // Not implemented
-- [ ] Implement playing state logic // Only for single player
-- [ ] Add game over state handling // Implemented for single player
-- [ ] Show appropriate UI for each state // Not implemented
-- [ ] Handle state transitions smoothly // Not implemented
+- [~] Handle waiting room state // Partially implemented: modal and state exist, but not a full waiting room UI
+- [~] Implement playing state logic // Implemented for single player and partially for multiplayer (setPlaying, setPaused, setGameOver, etc.)
+- [~] Add game over state handling // Implemented for single player and partially for multiplayer (setGameOver, overlays, etc.)
+- [ ] Show appropriate UI for each state // Not fully implemented: some overlays and modals, but not a complete state-based UI
+- [ ] Handle state transitions smoothly // Not fully implemented: transitions exist but are not always smooth or complete
 
 ## 🔧 Phase 6: Advanced Features
 

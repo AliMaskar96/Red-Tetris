@@ -1000,14 +1000,85 @@ const App = () => {
         <div style={{
           display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100vw', height: '100vh', position: 'relative',
         }}>
-          {/* Score/Level/Lines Panel (à gauche) */}
-          <div style={{margin: 24, width: 160, height: 160, background: '#222', borderRadius: 18, boxShadow: '0 2px 12px #0008', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: 16, zIndex: 2}}>
-            <div style={{fontWeight: 'bold', fontSize: 22, marginBottom: 8}}>SCORE</div>
-            <div style={{background: '#111', borderRadius: 8, width: 120, height: 32, marginBottom: 8, color: '#FFD700', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>{score}</div>
-            <div style={{fontWeight: 'bold', fontSize: 18, marginBottom: 4}}>LEVEL</div>
-            <div style={{background: '#111', borderRadius: 8, width: 120, height: 24, marginBottom: 8, color: '#FFD700', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>1</div>
-            <div style={{fontWeight: 'bold', fontSize: 18, marginBottom: 4}}>LINES</div>
-            <div style={{background: '#111', borderRadius: 8, width: 120, height: 24, color: '#FFD700', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>{lines}</div>
+          {/* Panneau à gauche : Score + Next */}
+          <div style={{margin: 24, display: 'flex', flexDirection: 'column', gap: 48, zIndex: 2}}>
+            {/* Score/Level/Lines Panel */}
+            <div style={{width: 160, height: 160, background: '#222', borderRadius: 18, boxShadow: '0 2px 12px #0008', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: 16}}>
+              <div style={{fontWeight: 'bold', fontSize: 22, marginBottom: 8}}>SCORE</div>
+              <div style={{background: '#111', borderRadius: 8, width: 120, height: 32, marginBottom: 8, color: '#FFD700', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>{score}</div>
+              <div style={{fontWeight: 'bold', fontSize: 18, marginBottom: 4}}>LEVEL</div>
+              <div style={{background: '#111', borderRadius: 8, width: 120, height: 24, marginBottom: 8, color: '#FFD700', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>1</div>
+              <div style={{fontWeight: 'bold', fontSize: 18, marginBottom: 4}}>LINES</div>
+              <div style={{background: '#111', borderRadius: 8, width: 120, height: 24, color: '#FFD700', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>{lines}</div>
+            </div>
+            
+            {/* Next Panel en bas du score */}
+            <div style={{width: 160, height: playing ? 180 : 120, background: '#222', borderRadius: 18, boxShadow: '0 2px 12px #0008', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: 12}}>
+              <div style={{fontWeight: 'bold', fontSize: 22, marginBottom: 8}}>NEXT</div>
+              <div style={{background: '#111', borderRadius: 8, width: 120, height: 80, marginBottom: playing ? 12 : 0, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                <NextPiecePreview type={nextType} />
+              </div>
+              
+              {/* Boutons Pause et Quit - seulement quand on joue */}
+              {playing && (
+                <>
+                  <button
+                    onClick={togglePause}
+                    style={{
+                      width: 120,
+                      height: 28,
+                      borderRadius: 8,
+                      border: 'none',
+                      background: paused ? '#4CAF50' : '#FF9800',
+                      color: 'white',
+                      fontWeight: 'bold',
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                      marginBottom: 6
+                    }}
+                  >
+                    {paused ? '▶ REPRENDRE' : '⏸ PAUSE'}
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      // Save score and stats before quitting
+                      if (score > 0 || lines > 0) {
+                        updateHighScores(score);
+                        updateGameStats(score, lines, isMultiplayer, false);
+                      }
+                      
+                      // If in multiplayer, send game-over to server to eliminate player
+                      if (isMultiplayer && currentPlayerId) {
+                        socketService.sendGameOver(currentPlayerId);
+                      }
+                      
+                      // Trigger game over state to show end game popup
+                      setGameOver(true);
+                      setPlaying(false);
+                      setPaused(false);
+                    }}
+                    style={{
+                      width: 120,
+                      height: 28,
+                      borderRadius: 8,
+                      border: 'none',
+                      background: '#f44336',
+                      color: 'white',
+                      fontWeight: 'bold',
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+                    }}
+                  >
+                    🚪 QUITTER
+                  </button>
+                </>
+              )}
+            </div>
           </div>
           {/* Main Panel avec le jeu au centre */}
           <div style={{
@@ -1536,104 +1607,82 @@ const App = () => {
             </div>
           )}
           
-          {/* Next Panel à droite */}
-          <div style={{margin: 24, width: 160, height: playing ? 240 : 160, background: '#222', borderRadius: 18, boxShadow: '0 2px 12px #0008', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: 12, zIndex: 2}}>
-            <div style={{fontWeight: 'bold', fontSize: 22, marginBottom: 8}}>NEXT</div>
-            <div style={{background: '#111', borderRadius: 8, width: 120, height: 100, marginBottom: playing ? 12 : 0, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-              <NextPiecePreview type={nextType} />
-            </div>
-            
-            {/* Pause Button - only show when playing */}
-            {playing && (
-              <>
-                <button
-                  onClick={togglePause}
-                  style={{
-                    width: 120,
-                    height: 32,
-                    borderRadius: 8,
-                    border: 'none',
-                    background: paused ? '#4CAF50' : '#FF9800',
-                    color: 'white',
-                    fontWeight: 'bold',
-                    fontSize: 14,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-                    marginBottom: 8
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.transform = 'translateY(-2px)';
-                    e.target.style.boxShadow = '0 4px 12px rgba(0,0,0,0.4)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.transform = 'translateY(0)';
-                    e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
-                  }}
-                >
-                  {paused ? '▶ REPRENDRE' : '⏸ PAUSE'}
-                </button>
-                
-                {/* Quit Game Button */}
-                <button
-                  onClick={() => {
-                    // Save score and stats before quitting
-                    if (score > 0 || lines > 0) {
-                      updateHighScores(score);
-                      updateGameStats(score, lines, isMultiplayer, false);
-                    }
-                    
-                    // If in multiplayer, send game-over to server to eliminate player
-                    if (isMultiplayer && currentPlayerId) {
-                      socketService.sendGameOver(currentPlayerId);
-                    }
-                    
-                    // Trigger game over state to show end game popup
-                    setGameOver(true);
-                    setPlaying(false);
-                    setPaused(false);
-                  }}
-                  style={{
-                    width: 120,
-                    height: 32,
-                    borderRadius: 8,
-                    border: 'none',
-                    background: '#f44336',
-                    color: 'white',
-                    fontWeight: 'bold',
-                    fontSize: 14,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.transform = 'translateY(-2px)';
-                    e.target.style.boxShadow = '0 4px 12px rgba(0,0,0,0.4)';
-                    e.target.style.background = '#d32f2f';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.transform = 'translateY(0)';
-                    e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
-                    e.target.style.background = '#f44336';
-                  }}
-                >
-                  🚪 QUITTER
-                </button>
-              </>
-            )}
-          </div>
-
-          {/* Opponents Panel - only show in multiplayer game */}
-          {isMultiplayer && playing && opponents.length > 0 && (
-            <div style={{margin: 24, zIndex: 2, position: 'absolute', right: 200, top: '50%', transform: 'translateY(-50%)'}}>
+          {/* Opponents Panel à droite - toujours visible */}
+          <div style={{margin: 24, zIndex: 2}}>
+            {isMultiplayer && playing && opponents.length > 0 ? (
               <OpponentsList 
                 opponents={opponents} 
                 opponentsSpectrums={opponentsSpectrums}
                 opponentsScores={opponentsScores}
                 eliminatedPlayers={eliminatedPlayers}
               />
-            </div>
-          )}
+            ) : (
+              /* Panneau opponents vide avec message approprié */
+              <div style={{
+                width: 160,
+                minHeight: 200,
+                background: '#222',
+                borderRadius: 18,
+                boxShadow: '0 2px 12px #0008',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 20,
+                textAlign: 'center'
+              }}>
+                <div style={{fontWeight: 'bold', fontSize: 22, marginBottom: 16, color: '#FFD700'}}>
+                  OPPONENTS
+                </div>
+                
+                {!playing ? (
+                  /* Message pour le lobby */
+                  <div style={{
+                    color: '#999',
+                    fontSize: 16,
+                    lineHeight: '1.4',
+                    fontStyle: 'italic'
+                  }}>
+                    🎮
+                    <br /><br />
+                    En attente d'une partie...
+                    <br /><br />
+                    Créez ou rejoignez une room pour jouer en multijoueur !
+                  </div>
+                ) : !isMultiplayer ? (
+                  /* Message pour le mode solo */
+                  <div style={{
+                    color: '#666',
+                    fontSize: 16,
+                    lineHeight: '1.4',
+                    fontStyle: 'italic'
+                  }}>
+                    🎯
+                    <br /><br />
+                    Mode Solo
+                    <br /><br />
+                    Pas d'adversaires
+                    <br />
+                    Battez votre record !
+                  </div>
+                ) : (
+                  /* Message pour multijoueur sans opponents */
+                  <div style={{
+                    color: '#888',
+                    fontSize: 16,
+                    lineHeight: '1.4',
+                    fontStyle: 'italic'
+                  }}>
+                    👥
+                    <br /><br />
+                    Multijoueur
+                    <br /><br />
+                    En attente d'autres joueurs...
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           
           {/* URL Join Status Notification */}
           {urlJoinStatus === 'joining' && (

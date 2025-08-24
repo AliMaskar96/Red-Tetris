@@ -183,6 +183,8 @@ export default function registerSocketHandlers(io) {
         score: player.score || 0
       });
       
+      console.log(`📡 Broadcasting spectrum for player ${playerId} (piece placed):`, player.spectrum);
+      
       loginfo(`Player ${playerId} placed piece ${piece} in room ${roomId}`);
     });
 
@@ -240,6 +242,8 @@ export default function registerSocketHandlers(io) {
         score: player.score || 0
       });
       
+      console.log(`📡 Broadcasting spectrum for player ${playerId}:`, player.spectrum);
+      
       // Also broadcast score update specifically
       if (newScore !== undefined) {
         io.to(roomId).emit('player-score-updated', { 
@@ -280,6 +284,8 @@ export default function registerSocketHandlers(io) {
         spectrum: player.spectrum,
         score: player.score || 0
       });
+      
+      console.log(`📡 Broadcasting spectrum for player ${playerId} (board update):`, player.spectrum);
       
       loginfo(`Player ${playerId} updated board in room ${roomId}`);
     });
@@ -495,16 +501,17 @@ function generateSpectrum(board) {
   // Returns an array of 10 numbers: for each column, the height of blocks (0 = empty, 20 = full)
   const spectrum = Array(10).fill(0);
   for (let col = 0; col < 10; col++) {
-    // Count blocks from bottom to top
+    // Find the topmost occupied cell and calculate height
     let height = 0;
-    for (let row = 19; row >= 0; row--) { // Start from bottom (row 19)
+    for (let row = 0; row < 20; row++) { // Start from top (row 0)
       if (board[row][col] !== 0) {
-        height = 20 - row; // Height is 20 minus the top row position
-        break;
+        height = 20 - row; // Height is 20 minus the topmost occupied row
+        break; // Stop at the first occupied cell from the top
       }
     }
     spectrum[col] = height;
   }
+  console.log('🎯 Generated spectrum for board:', spectrum);
   return spectrum;
 }
 

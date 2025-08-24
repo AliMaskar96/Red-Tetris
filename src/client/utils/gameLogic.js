@@ -123,6 +123,56 @@ export function generateSpectrum(board) {
   return spectrum;
 }
 
+// Calcule la position du spectre (ombre de la pièce qui montre où elle va atterrir)
+export function calculateShadowPosition(piece, board, posX, posY) {
+  let shadowY = posY;
+  
+  // Descendre jusqu'à la première collision
+  while (!checkCollision(piece, board, posX, shadowY + 1)) {
+    shadowY++;
+  }
+  
+  return { x: posX, y: shadowY };
+}
+
+// Génère le plateau avec la pièce actuelle et son spectre
+export function getBoardWithPieceAndShadow(piece, board, posX, posY) {
+  const boardCopy = board.map(row => [...row]);
+  const shadowPos = calculateShadowPosition(piece, board, posX, posY);
+  
+  // Dessiner le spectre d'abord (avec une valeur spéciale -1) seulement si différent de la position actuelle
+  if (shadowPos.y !== posY) {
+    for (let y = 0; y < piece.length; y++) {
+      for (let x = 0; x < piece[y].length; x++) {
+        if (piece[y][x]) {
+          const boardY = shadowPos.y + y;
+          const boardX = shadowPos.x + x;
+          if (boardY >= 0 && boardY < board.length && boardX >= 0 && boardX < board[0].length) {
+            if (boardCopy[boardY][boardX] === 0) { // Ne dessiner que sur les cases vides
+              boardCopy[boardY][boardX] = -1; // Valeur spéciale pour le spectre
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  // Dessiner la pièce actuelle par-dessus
+  for (let y = 0; y < piece.length; y++) {
+    for (let x = 0; x < piece[y].length; x++) {
+      if (piece[y][x]) {
+        const boardY = posY + y;
+        const boardX = posX + x;
+        if (boardY >= 0 && boardY < board.length && boardX >= 0 && boardX < board[0].length) {
+          boardCopy[boardY][boardX] = piece[y][x];
+        }
+      }
+    }
+  }
+  
+  return boardCopy;
+}
+
 // --- 7-bag piece sequence generator ---
 const TETROMINO_TYPES = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
 

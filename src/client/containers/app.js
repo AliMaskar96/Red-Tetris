@@ -11,7 +11,8 @@ import {
   createPieceSequence,
   getNextPiece,
   addPenaltyLines,
-  generateSpectrum
+  generateSpectrum,
+  getBoardWithPieceAndShadow
 } from '../utils/gameLogic'
 import GameLobby from '../components/GameLobby';
 import OpponentsList from '../components/OpponentsList';
@@ -467,10 +468,15 @@ const App = () => {
     socketService.onPlayerBoardUpdated(({ playerId, board, spectrum, score }) => {
       console.log('📊 Player board updated:', { playerId, spectrum, score });
       if (playerId !== currentPlayerId) {
-        setOpponentsSpectrums(prev => ({
-          ...prev,
-          [playerId]: spectrum
-        }));
+        console.log('🔥 Updating opponent spectrum:', { playerId, spectrum });
+        setOpponentsSpectrums(prev => {
+          const updated = {
+            ...prev,
+            [playerId]: spectrum
+          };
+          console.log('🔄 New opponents spectrums state:', updated);
+          return updated;
+        });
         // Update opponent's score if provided
         if (score !== undefined) {
           console.log('📊 Updating opponent score:', { playerId, score });
@@ -479,6 +485,8 @@ const App = () => {
             [playerId]: score
           }));
         }
+      } else {
+        console.log('🚫 Ignoring own board update');
       }
     });
 
@@ -770,7 +778,10 @@ const App = () => {
             
             // Send piece placed to server in multiplayer
             if (isMultiplayer && currentPlayerId) {
+              console.log(`🔧 Sending piece placed with board update for spectrum calculation`);
               socketService.sendPiecePlaced(currentPlayerId, currentType, newBoard);
+              // Also explicitly send board update for spectrum calculation
+              socketService.sendBoardUpdate(currentPlayerId, newBoard);
             }
             
             return newBoard;
@@ -852,8 +863,8 @@ const App = () => {
     }
   }, [inLobby]);
 
-  // Fusionne la pièce à sa position courante sur la pile
-  const boardWithPiece = placePiece(shape, pile, pos.x, pos.y);
+  // Fusionne la pièce à sa position courante sur la pile avec le spectre
+  const boardWithPiece = getBoardWithPieceAndShadow(shape, pile, pos.x, pos.y);
 
   // Fonction de reset
   const handleReset = () => {

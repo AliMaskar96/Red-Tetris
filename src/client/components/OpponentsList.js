@@ -5,6 +5,9 @@ const getInitials = (name) => name.split(' ').map(n => n[0]).join('').toUpperCas
 
 // Component to display spectrum as a visual bar chart
 const SpectrumDisplay = ({ spectrum, isEliminated = false }) => {
+  // Debug log to see spectrum values
+  console.log('🔍 SpectrumDisplay rendering with spectrum:', spectrum, 'isEliminated:', isEliminated);
+  
   if (isEliminated) {
     return (
       <div className="spectrum-display">
@@ -20,6 +23,7 @@ const SpectrumDisplay = ({ spectrum, isEliminated = false }) => {
   }
 
   if (!spectrum || spectrum.length !== 10) {
+    console.log('⚠️ Invalid spectrum data:', { spectrum, length: spectrum?.length });
     return (
       <div className="spectrum-display">
         <div className="spectrum-placeholder">No data</div>
@@ -30,9 +34,22 @@ const SpectrumDisplay = ({ spectrum, isEliminated = false }) => {
   return (
     <div className="spectrum-display">
       {spectrum.map((height, idx) => {
-        // Convert height to a percentage (0-20 range -> 0-100%)
-        const percentage = (height / 20) * 100; // Height directly represents percentage
-        const barHeight = Math.max(2, percentage); // Minimum 2% height for empty columns visibility
+        // Height is 0-20, where 0 = empty column, 20 = full column
+        // Convert to percentage: 0 = 0%, 20 = 100%
+        const percentage = (height / 20) * 100;
+        const barHeight = Math.max(2, percentage); // Minimum 2% height for visibility
+        
+        // Color gradient based on height - green for low, yellow for medium, red for high
+        let backgroundColor;
+        if (height === 0) {
+          backgroundColor = '#333'; // Dark gray for empty
+        } else if (height <= 7) {
+          backgroundColor = '#4CAF50'; // Green for safe
+        } else if (height <= 14) {
+          backgroundColor = '#FF9800'; // Orange for warning
+        } else {
+          backgroundColor = '#f44336'; // Red for danger
+        }
         
         return (
           <div 
@@ -40,11 +57,12 @@ const SpectrumDisplay = ({ spectrum, isEliminated = false }) => {
             className="spectrum-bar" 
             style={{
               height: `${barHeight}%`,
-              backgroundColor: height === 0 ? '#333' : '#ff6b6b', // Gray if empty, red if occupied
+              backgroundColor,
               border: '1px solid #555',
-              borderRadius: '2px'
+              borderRadius: '2px',
+              boxShadow: height > 0 ? `0 0 4px ${backgroundColor}88` : 'none'
             }}
-            title={`Column ${idx + 1}: ${height === 0 ? 'Empty' : `Height: ${height}`}`}
+            title={`Column ${idx + 1}: ${height === 0 ? 'Empty' : `Height: ${height}/20`}`}
           />
         );
       })}
@@ -58,8 +76,12 @@ const OpponentsList = ({ opponents = [], opponentsSpectrums = {}, opponentsScore
     return eliminatedPlayers.some(ep => ep.id === playerId);
   };
 
-  // Debug log for scores
-  console.log('👥 OpponentsList rendering with scores:', opponentsScores);
+  // Debug log for scores and spectrums
+  console.log('👥 OpponentsList rendering with:', { 
+    opponents: opponents.map(o => o.id), 
+    opponentsSpectrums: Object.keys(opponentsSpectrums), 
+    opponentsScores: Object.keys(opponentsScores) 
+  });
 
   return (
     <div className="opponents-list enhanced" style={{

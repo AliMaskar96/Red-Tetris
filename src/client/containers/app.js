@@ -1,13 +1,7 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react'
 import Board, { NextPiecePreview } from '../components/Board'
 import { getTetromino } from '../utils/tetrominos'
-import {
-  placePiece,
-  clearLines,
-  checkCollision,
-  createEmptyBoard,
-  rotatePiece,
-  movePiece,
+import {placePiece,clearLines,checkCollision,createEmptyBoard,rotatePiece,movePiece,
   createPieceSequence,
   getNextPiece,
   addPenaltyLines,
@@ -17,97 +11,200 @@ import {
 import GameLobby from '../components/GameLobby';
 import OpponentsList from '../components/OpponentsList';
 import Controls from '../components/Controls';
+import CreateRoomModal from '../components/CreateRoomModal';
+import JoinRoomModal from '../components/JoinRoomModal';
+import GameOverModal from '../components/GameOverModal';
+import GameBoard from '../components/GameBoard';
+import GameHUD from '../components/GameHUD';
+import GameControls from '../components/GameControls';
 import socketService from '../services/socketService';
+import { getFromLocalStorage, saveToLocalStorage } from '../services/localStorageService';
+import { 
+  ROWS, 
+  COLS, 
+  SEQUENCE_LENGTH, 
+  SEED, 
+  STORAGE_KEYS, 
+  DEFAULT_VALUES,
+  GAME_MODES 
+} from '../utils/gameConstants';
+import {
+  generateRoomId,
+  parseHashUrl,
+  createUrlHash,
+  updateUrlHash,
+  clearUrlHash,
+  validateUsername,
+  validateRoomId,
+  findCurrentPlayer,
+  initializeOpponentsScores,
+  resetOpponentsData
+} from '../utils/gameHelpers';
+import { useGameState } from '../hooks/useGameState';
+import { useMultiplayerState } from '../hooks/useMultiplayerState';
+import { useURLNavigation } from '../hooks/useURLNavigation';
+import { useKeyboardControls } from '../hooks/useKeyboardControls';
 import '../styles/url-navigation.css';
 
-const ROWS = 20;
-const COLS = 10;
-const SEQUENCE_LENGTH = 500; // Arbitrary large enough value for a game
-const SEED = undefined; // Optionally set for deterministic multiplayer
-
-// LocalStorage helper functions
-const getFromLocalStorage = (key, defaultValue) => {
-  try {
-    const item = localStorage.getItem(key);
-    return item ? JSON.parse(item) : defaultValue;
-  } catch (error) {
-    console.error('Error reading from localStorage:', error);
-    return defaultValue;
-  }
-};
-
-const saveToLocalStorage = (key, value) => {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (error) {
-    console.error('Error saving to localStorage:', error);
-  }
-};
-
 const App = () => {
-  // Modal CREATE ROOM state and logic (must be at top level, not inside JSX)
-  const [showCreateRoomModal, setShowCreateRoomModal] = useState(false);
-  const [createRoomId] = useState(() => Math.random().toString(36).substr(2, 6).toUpperCase());
-  const [username, setUsername] = useState(getFromLocalStorage('tetris_last_username', ''));
-  const [userList, setUserList] = useState([]);
+  // Use custom hooks for state management
+  const gameState = useGameState();
+  const multiplayerState = useMultiplayerState();
   
-  // Modal JOIN ROOM state
-  const [showJoinRoomModal, setShowJoinRoomModal] = useState(false);
-  const [joinRoomId, setJoinRoomId] = useState('');
-  const [joinUsername, setJoinUsername] = useState(getFromLocalStorage('tetris_last_username', ''));
+  // Destructure what we need from hooks
+  const {
+    pieceSequence,
+    emptyBoard,
+    pieceIndex,
+    currentType,
+    nextType,
+    shape,
+    pile,
+    pos,
+    lockInput,
+    pendingNewPiece,
+    gameOver,
+    playing,
+    paused,
+    inLobby,
+    score,
+    lines,
+    selectedMode,
+    highScores,
+    gameStats,
+    gravityDrop,
+    gravityTimeoutRef,
+    invisibleFlash,
+    lastY,
+    setPieceIndex,
+    setCurrentType,
+    setNextType,
+    setShape,
+    setPile,
+    setPos,
+    setLockInput,
+    setPendingNewPiece,
+    setGameOver,
+    setPlaying,
+    setPaused,
+    setInLobby,
+    setScore,
+    setLines,
+    setGravityDrop,
+    setInvisibleFlash,
+    setLastY,
+    updateHighScores,
+    updateGameStats,
+    handleModeChange,
+    resetGameState
+  } = gameState;
   
-  // Current player name for multiplayer
-  const [currentPlayerName, setCurrentPlayerName] = useState('');
-  const [isJoiningRoom, setIsJoiningRoom] = useState(false);
-  
-  // URL-based room joining state
-  const [urlRoomInfo, setUrlRoomInfo] = useState(null);
-  const [autoJoinAttempted, setAutoJoinAttempted] = useState(false);
-  const [urlJoinStatus, setUrlJoinStatus] = useState(''); // 'joining', 'success', 'error'
-  
-  // Multiplayer state
-  const [currentRoomId, setCurrentRoomId] = useState(null);
-  const [currentGameId, setCurrentGameId] = useState(null);
-  const [currentPlayerId, setCurrentPlayerId] = useState(null);
-  const [roomPlayers, setRoomPlayers] = useState([]);
-  const [isRoomLeader, setIsRoomLeader] = useState(false);
-  const [joinError, setJoinError] = useState('');
-  const [isMultiplayer, setIsMultiplayer] = useState(false);
-  
-  // Multiplayer game state
-  const [eliminatedPlayers, setEliminatedPlayers] = useState([]);
-  const [gameWinner, setGameWinner] = useState(null);
-  const [multiplayerGameEnded, setMultiplayerGameEnded] = useState(false);
-  const [waitingForRematch, setWaitingForRematch] = useState(false);
-  
-  // Opponents' spectrums for display
-  const [opponentsSpectrums, setOpponentsSpectrums] = useState({});
-  
-  // Opponents' scores for display
-  const [opponentsScores, setOpponentsScores] = useState({});
-  
-  // Penalty lines notification
-  const [penaltyNotification, setPenaltyNotification] = useState(null);
-  
-  // High scores from localStorage
-  const [highScores, setHighScores] = useState(getFromLocalStorage('tetris_high_scores', [0, 0, 0, 0, 0]));
-  
-  // Game statistics
-  const [gameStats, setGameStats] = useState(getFromLocalStorage('tetris_game_stats', {
-    gamesPlayed: 0,
-    totalScore: 0,
-    totalLines: 0,
-    multiplayerWins: 0,
-    multiplayerGames: 0
-  }));
+  const {
+    showCreateRoomModal,
+    setShowCreateRoomModal,
+    showJoinRoomModal,
+    setShowJoinRoomModal,
+    createRoomId,
+    username,
+    setUsername,
+    userList,
+    setUserList,
+    joinRoomId,
+    setJoinRoomId,
+    joinUsername,
+    setJoinUsername,
+    isJoiningRoom,
+    setIsJoiningRoom,
+    joinError,
+    setJoinError,
+    currentPlayerName,
+    setCurrentPlayerName,
+    currentRoomId,
+    setCurrentRoomId,
+    currentGameId,
+    setCurrentGameId,
+    currentPlayerId,
+    setCurrentPlayerId,
+    roomPlayers,
+    setRoomPlayers,
+    isRoomLeader,
+    setIsRoomLeader,
+    isMultiplayer,
+    setIsMultiplayer,
+    urlRoomInfo,
+    setUrlRoomInfo,
+    autoJoinAttempted,
+    setAutoJoinAttempted,
+    urlJoinStatus,
+    setUrlJoinStatus,
+    eliminatedPlayers,
+    setEliminatedPlayers,
+    gameWinner,
+    setGameWinner,
+    multiplayerGameEnded,
+    setMultiplayerGameEnded,
+    waitingForRematch,
+    setWaitingForRematch,
+    opponentsSpectrums,
+    setOpponentsSpectrums,
+    opponentsScores,
+    setOpponentsScores,
+    penaltyNotification,
+    setPenaltyNotification,
+    initializeOpponents,
+    resetOpponents,
+    resetMultiplayerState,
+    savePlayerName,
+    getOpponents
+  } = multiplayerState;
+
+  // Setup URL navigation
+  useURLNavigation({
+    urlRoomInfo,
+    setUrlRoomInfo,
+    autoJoinAttempted,
+    setAutoJoinAttempted,
+    currentRoomId,
+    currentPlayerName,
+    isJoiningRoom,
+    setJoinRoomId,
+    setJoinUsername,
+    setCurrentPlayerName,
+    setIsJoiningRoom,
+    setJoinError,
+    setUrlJoinStatus,
+    setShowJoinRoomModal,
+    socketService
+  });
+
+  // Setup keyboard controls
+  useKeyboardControls({
+    playing,
+    gameOver,
+    multiplayerGameEnded,
+    paused,
+    lockInput,
+    pendingNewPiece,
+    shape,
+    pile,
+    pos,
+    setPos,
+    setShape,
+    setPaused,
+    isMultiplayer,
+    currentPlayerId,
+    socketService
+  });
   
   const handleValidateUsername = () => {
-    if (username.trim() && !userList.includes(username.trim())) {
+    const validation = validateUsername(username, userList);
+    
+    if (validation.isValid) {
       setUserList(prev => [...prev, username.trim()]);
       const playerName = username.trim();
       setCurrentPlayerName(playerName); // Save current player name
       // Save username to localStorage
-      saveToLocalStorage('tetris_last_username', playerName);
+      saveToLocalStorage(STORAGE_KEYS.LAST_USERNAME, playerName);
       setUsername('');
       
       // Automatically create the room after adding the first player
@@ -115,22 +212,10 @@ const App = () => {
       setIsRoomLeader(true); // Creator is automatically the leader
       setJoinError(''); // Clear any previous errors
       socketService.joinRoom(createRoomId, playerName, true); // true = isCreator
-    } else if (!username.trim()) {
-      setJoinError('Veuillez entrer un nom valide');
-    } else if (userList.includes(username.trim())) {
-      setJoinError('Ce nom est déjà pris');
+    } else {
+      setJoinError(validation.error);
     }
   };
-
-  // Prevent scrolling on the main page
-  useEffect(() => {
-    document.documentElement.style.overflow = 'hidden';
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.documentElement.style.overflow = '';
-      document.body.style.overflow = '';
-    };
-  }, []);
 
   // Connect to server on component mount
   useEffect(() => {
@@ -142,93 +227,15 @@ const App = () => {
     };
   }, []);
 
-  // Parse URL hash on component mount and setup hash change listener
+  // Prevent scrolling on the main page
   useEffect(() => {
-    const parseHashUrl = () => {
-      const hash = window.location.hash.slice(1); // Remove the # character
-      if (hash) {
-        // Parse format: #<room>[<player_name>]
-        // Examples: #ROOM123[Alice], #ROOM123, #ABC123[Bob]
-        const match = hash.match(/^([A-Z0-9]+)(?:\[([^\]]+)\])?$/);
-        if (match) {
-          const roomId = match[1];
-          const playerName = match[2];
-          
-          console.log('Parsed URL hash:', { roomId, playerName });
-          
-          return { roomId, playerName };
-        } else {
-          console.warn('Invalid hash URL format. Expected: #<room>[<player_name>]');
-          return null;
-        }
-      }
-      return null;
-    };
-
-    const urlInfo = parseHashUrl();
-    setUrlRoomInfo(urlInfo);
-
-    // Listen for hash changes
-    const handleHashChange = () => {
-      const newUrlInfo = parseHashUrl();
-      setUrlRoomInfo(newUrlInfo);
-      setAutoJoinAttempted(false); // Reset auto-join for new URL
-    };
-
-    window.addEventListener('hashchange', handleHashChange);
-    
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
     return () => {
-      window.removeEventListener('hashchange', handleHashChange);
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
     };
   }, []);
-
-  // Auto-join room from URL if present
-  useEffect(() => {
-    if (urlRoomInfo && !autoJoinAttempted && !currentRoomId && !isJoiningRoom) {
-      setAutoJoinAttempted(true);
-      
-      const { roomId, playerName } = urlRoomInfo;
-      
-      // Set values for auto-join
-      setJoinRoomId(roomId);
-      if (playerName) {
-        setJoinUsername(playerName);
-        setCurrentPlayerName(playerName);
-        saveToLocalStorage('tetris_last_username', playerName);
-      }
-      
-      // Automatically attempt to join the room
-      console.log('Auto-joining room from URL:', { roomId, playerName });
-      setIsJoiningRoom(true);
-      setJoinError('');
-      setUrlJoinStatus('joining');
-      
-      // Use the playerName from URL or the last saved username
-      const nameToUse = playerName || getFromLocalStorage('tetris_last_username', '');
-      if (nameToUse) {
-        setCurrentPlayerName(nameToUse);
-        socketService.joinRoom(roomId, nameToUse);
-      } else {
-        // No username available, show join modal for user to enter name
-        setIsJoiningRoom(false);
-        setUrlJoinStatus('');
-        setShowJoinRoomModal(true);
-      }
-    }
-  }, [urlRoomInfo, autoJoinAttempted, currentRoomId, isJoiningRoom]);
-
-  // Update URL when room changes
-  useEffect(() => {
-    if (currentRoomId && currentPlayerName) {
-      const newHash = `#${currentRoomId}[${currentPlayerName}]`;
-      if (window.location.hash !== newHash) {
-        window.history.pushState(null, null, newHash);
-      }
-    } else if (!currentRoomId && window.location.hash) {
-      // Clear hash when leaving room
-      window.history.pushState(null, null, window.location.pathname);
-    }
-  }, [currentRoomId, currentPlayerName]);
 
   // Setup socket event listeners with current state values
   useEffect(() => {
@@ -245,36 +252,11 @@ const App = () => {
       setCurrentGameId(game.id);
       setRoomPlayers(players);
       
-      // Find current player first
-      let foundCurrentPlayer = null;
-      
-      // Try to find by currentPlayerName first
-      if (currentPlayerName) {
-        foundCurrentPlayer = players.find(p => p.name === currentPlayerName);
-      }
-      
-      // If not found, try by joinUsername
-      if (!foundCurrentPlayer && joinUsername) {
-        foundCurrentPlayer = players.find(p => p.name === joinUsername.trim());
-      }
-      
-      // If not found, try by username
-      if (!foundCurrentPlayer && username) {
-        foundCurrentPlayer = players.find(p => p.name === username.trim());
-      }
-      
-      // If still not found, try by userList (for create room)
-      if (!foundCurrentPlayer && userList.length > 0) {
-        foundCurrentPlayer = players.find(p => userList.includes(p.name));
-      }
+      // Find current player using helper function
+      const foundCurrentPlayer = findCurrentPlayer(players, currentPlayerName, joinUsername, username, userList);
       
       // Initialize opponents' scores from room join data (excluding current player)
-      const initialOpponentsScores = {};
-      players.forEach(player => {
-        if (player.score !== undefined && player.id !== (foundCurrentPlayer ? foundCurrentPlayer.id : null)) {
-          initialOpponentsScores[player.id] = player.score;
-        }
-      });
+      const initialOpponentsScores = initializeOpponentsScores(players, foundCurrentPlayer?.id);
       setOpponentsScores(initialOpponentsScores);
       console.log('📊 Initialized opponents scores:', initialOpponentsScores);
       
@@ -356,18 +338,12 @@ const App = () => {
       setMultiplayerGameEnded(false);
       
       // Reset opponents' scores to 0 for new game
-      const resetOpponentsScores = {};
-      Object.keys(opponentsScores).forEach(playerId => {
-        resetOpponentsScores[playerId] = 0;
-      });
+      const resetOpponentsScores = resetOpponentsData(opponentsScores, 0);
       setOpponentsScores(resetOpponentsScores);
       console.log('🔄 Reset opponents scores for new game:', resetOpponentsScores);
       
       // Reset opponents' spectrums to empty for new game
-      const resetOpponentsSpectrums = {};
-      Object.keys(opponentsSpectrums).forEach(playerId => {
-        resetOpponentsSpectrums[playerId] = Array(10).fill(0); // Empty spectrum (all columns at height 0)
-      });
+      const resetOpponentsSpectrums = resetOpponentsData(opponentsSpectrums, Array(10).fill(0));
       setOpponentsSpectrums(resetOpponentsSpectrums);
       console.log('🔄 Reset opponents spectrums for new game:', resetOpponentsSpectrums);
     });
@@ -512,32 +488,6 @@ const App = () => {
     }
   }, [score, isMultiplayer, currentPlayerId, pile]);
 
-  // Generate a piece sequence at game start
-  const pieceSequence = useMemo(() => createPieceSequence(SEQUENCE_LENGTH, SEED), []);
-
-  // State for piece index, next piece preview, etc.
-  const [pieceIndex, setPieceIndex] = useState(0);
-  const [currentType, setCurrentType] = useState(getNextPiece(pieceSequence, 0));
-  const [nextType, setNextType] = useState(getNextPiece(pieceSequence, 1));
-  const [shape, setShape] = useState(getTetromino(currentType).shape);
-  const emptyBoard = useMemo(() => createEmptyBoard(), []);
-  const startX = Math.floor((COLS - shape[0].length) / 2);
-
-  // State for the rest
-  const [pile, setPile] = useState(emptyBoard);
-  const [pos, setPos] = useState({ x: startX, y: 0 });
-  const [lockInput, setLockInput] = useState(false);
-  const [pendingNewPiece, setPendingNewPiece] = useState(false);
-  const [gameOver, setGameOver] = useState(false);
-  const [score, setScore] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [paused, setPaused] = useState(false);
-  const [inLobby, setInLobby] = useState(true); // Add lobby/game toggle
-  const [selectedMode, setSelectedMode] = useState(getFromLocalStorage('tetris_selected_mode', 'classic')); // Mode selection from localStorage
-  const [lines, setLines] = useState(0);
-  const [gravityDrop, setGravityDrop] = useState(false);
-  const gravityTimeoutRef = React.useRef();
-
   // Mock data for demonstration (now will be replaced by real multiplayer data)
   const mockPlayers = roomPlayers.length > 0 ? roomPlayers : [
     { id: '1', name: 'Ali', isLeader: true },
@@ -565,7 +515,7 @@ const App = () => {
     const playerName = joinUsername.trim();
     setCurrentPlayerName(playerName); // Save current player name
     // Save username to localStorage
-    saveToLocalStorage('tetris_last_username', playerName);
+    saveToLocalStorage(STORAGE_KEYS.LAST_USERNAME, playerName);
     setIsJoiningRoom(true); // Show loading state
     setJoinError(''); // Clear previous errors
     socketService.joinRoom(joinRoomId.trim().toUpperCase(), playerName);
@@ -610,59 +560,19 @@ const App = () => {
     }
   };
 
-  // Gestion des touches
-  const handleKeyDown = useCallback((e) => {
-    // Handle pause key (P or Escape) even when paused
-    if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
-      if (playing && !gameOver && !multiplayerGameEnded) {
-        setPaused(prev => !prev);
-        return;
-      }
-    }
-    
-    if (gameOver || lockInput || pendingNewPiece || multiplayerGameEnded || paused || e.repeat) return;
-    
-    let move = null;
-    if (e.key === 'ArrowLeft') {
-      move = 'left';
-      setPos(pos => {
-        const { x, y } = movePiece(shape, 'left', pile, pos.x, pos.y);
-        return { ...pos, x };
-      });
-    } else if (e.key === 'ArrowRight') {
-      move = 'right';
-      setPos(pos => {
-        const { x, y } = movePiece(shape, 'right', pile, pos.x, pos.y);
-        return { ...pos, x };
-      });
-    } else if (e.key === 'ArrowDown') {
-      move = 'down';
-      setPos(pos => {
-        const { x, y } = movePiece(shape, 'down', pile, pos.x, pos.y);
-        return { ...pos, y };
-      });
-    } else if (e.key === 'ArrowUp' || e.key === ' ') {
-      move = 'rotate';
-      setShape(s => rotatePiece(s, pile, pos.x, pos.y));
-    }
-    
-    // Send move to server if in multiplayer
-    if (isMultiplayer && currentPlayerId && move) {
-      socketService.sendPlayerMove(currentPlayerId, move);
-    }
-  }, [shape, pile, pos.x, pos.y, lockInput, pendingNewPiece, gameOver, multiplayerGameEnded, isMultiplayer, currentPlayerId, paused, playing]);
-
-  useEffect(() => {
-    if (!playing) return;
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown, playing]);
+  // Quit game function
+  const handleQuitGame = () => {
+    // Trigger game over state to show end game popup
+    setGameOver(true);
+    setPlaying(false);
+    setPaused(false);
+  };
 
   // Descente automatique de la pièce et fixation
   useEffect(() => {
     if (!playing || gameOver || multiplayerGameEnded || paused) return;
     let interval;
-    if (selectedMode === 'gravity') {
+    if (selectedMode === GAME_MODES.GRAVITY) {
       if (gravityDrop) {
         interval = setInterval(() => {
           setPos(pos => {
@@ -697,7 +607,7 @@ const App = () => {
 
   // Gravity+ mode: after each new piece appears, after 2s it drops INSTANTLY to the bottom
   useEffect(() => {
-    if (selectedMode === 'gravity' && playing) {
+    if (selectedMode === GAME_MODES.GRAVITY && playing) {
       if (pos.y === 0) {
         setGravityDrop(false);
         if (gravityTimeoutRef.current) clearTimeout(gravityTimeoutRef.current);
@@ -724,7 +634,7 @@ const App = () => {
 
   // Only trigger instant drop ONCE per piece
   useEffect(() => {
-    if (selectedMode === 'gravity' && playing && gravityDrop) {
+    if (selectedMode === GAME_MODES.GRAVITY && playing && gravityDrop) {
       dropPieceToBottom();
     }
     // eslint-disable-next-line
@@ -732,7 +642,7 @@ const App = () => {
 
   // Gravity+ mode: after each new piece appears, after 2s it drops rapidly
   useEffect(() => {
-    if (selectedMode === 'gravity' && playing) {
+    if (selectedMode === GAME_MODES.GRAVITY && playing) {
       // When a new piece spawns (pos.y === 0)
       if (pos.y === 0) {
         setGravityDrop(false);
@@ -759,7 +669,7 @@ const App = () => {
           setPile(pile => {
             const merged = placePiece(shape, pile, pos.x, pos.y);
             let newBoard, linesCleared;
-            if (selectedMode === 'gravity') {
+            if (selectedMode === GAME_MODES.GRAVITY) {
               ({ newBoard, linesCleared } = require('../utils/gameLogic').clearLinesWithGravity(merged));
             } else {
               ({ newBoard, linesCleared } = clearLines(merged));
@@ -792,7 +702,7 @@ const App = () => {
               // MULTIPLAYER: Request next piece from server
               const merged = placePiece(shape, pile, pos.x, pos.y);
               let newBoard;
-              if (selectedMode === 'gravity') {
+              if (selectedMode === GAME_MODES.GRAVITY) {
                 ({ newBoard } = require('../utils/gameLogic').clearLinesWithGravity(merged));
               } else {
                 ({ newBoard } = clearLines(merged));
@@ -820,7 +730,7 @@ const App = () => {
                 const newStartX = Math.floor((COLS - newShape[0].length) / 2);
                 const merged = placePiece(shape, pile, pos.x, pos.y);
                 let newBoard;
-                if (selectedMode === 'gravity') {
+                if (selectedMode === GAME_MODES.GRAVITY) {
                   ({ newBoard } = require('../utils/gameLogic').clearLinesWithGravity(merged));
                 } else {
                   ({ newBoard } = clearLines(merged));
@@ -866,81 +776,16 @@ const App = () => {
   // Fusionne la pièce à sa position courante sur la pile avec le spectre
   const boardWithPiece = getBoardWithPieceAndShadow(shape, pile, pos.x, pos.y);
 
-  // Fonction de reset
-  const handleReset = () => {
-    // Save score and stats before resetting
-    if (score > 0 || lines > 0) {
-      updateHighScores(score);
-      updateGameStats(score, lines, isMultiplayer, false);
-    }
-    
-    setPile(emptyBoard);
-    setPieceIndex(0);
-    setCurrentType(getNextPiece(pieceSequence, 0));
-    setNextType(getNextPiece(pieceSequence, 1));
-    const newShape = getTetromino(getNextPiece(pieceSequence, 0)).shape;
-    setShape(newShape);
-    setPos({ x: Math.floor((COLS - newShape[0].length) / 2), y: 0 });
-    setScore(0);
-    setLines(0);
-    setGameOver(false);
-    setLockInput(false);
-    setPendingNewPiece(false);
-    setPlaying(true);
-    setPaused(false); // Reset pause state
-    
-    // Reset multiplayer game state
-    setEliminatedPlayers([]);
-    setGameWinner(null);
-    setMultiplayerGameEnded(false);
-    setWaitingForRematch(false);
-    setWaitingForRematch(false);
-  };
-
-  // Function to update high scores
-  const updateHighScores = (newScore) => {
-    if (newScore > 0) {
-      const updatedScores = [...highScores, newScore]
-        .sort((a, b) => b - a)
-        .slice(0, 5); // Keep only top 5 scores
-      setHighScores(updatedScores);
-      saveToLocalStorage('tetris_high_scores', updatedScores);
-    }
-  };
-
-  // Function to update game statistics
-  const updateGameStats = (finalScore, finalLines, isMultiplayer = false, isWinner = false) => {
-    const newStats = {
-      ...gameStats,
-      gamesPlayed: gameStats.gamesPlayed + 1,
-      totalScore: gameStats.totalScore + finalScore,
-      totalLines: gameStats.totalLines + finalLines,
-      multiplayerGames: gameStats.multiplayerGames + (isMultiplayer ? 1 : 0),
-      multiplayerWins: gameStats.multiplayerWins + (isMultiplayer && isWinner ? 1 : 0)
-    };
-    setGameStats(newStats);
-    saveToLocalStorage('tetris_game_stats', newStats);
-  };
-
-  // Function to save selected mode
-  const handleModeChange = (mode) => {
-    setSelectedMode(mode);
-    saveToLocalStorage('tetris_selected_mode', mode);
-  };
-
   // Function de démarrage
   const handlePlay = () => {
     setInLobby(false);
-    handleReset();
+    resetGameState();
   };
 
   // Board rendering with mode logic
-  const [invisibleFlash, setInvisibleFlash] = useState(false);
-  const [lastY, setLastY] = useState(0);
-
   // Invisible mode: piece is invisible for 2s after every vertical move (including spawn)
   useEffect(() => {
-    if (selectedMode === 'invisible' && playing) {
+    if (selectedMode === GAME_MODES.INVISIBLE && playing) {
       if (pos.y !== lastY) {
         setInvisibleFlash(false); // Hide immediately
         const timeout = setTimeout(() => setInvisibleFlash(true), 2000); // Show after 2s
@@ -951,10 +796,10 @@ const App = () => {
       setInvisibleFlash(true); // Always visible in other modes
       setLastY(0);
     }
-  }, [pos.y, selectedMode, playing]);
+  }, [pos.y, selectedMode, playing, lastY, setInvisibleFlash, setLastY]);
 
   const getDisplayBoard = () => {
-    if (selectedMode === 'invisible' && playing) {
+    if (selectedMode === GAME_MODES.INVISIBLE && playing) {
       if (invisibleFlash) {
         return boardWithPiece;
       }
@@ -963,26 +808,169 @@ const App = () => {
     return boardWithPiece;
   };
 
-  // Parse URL hash for room info
-  useEffect(() => {
-    const hash = window.location.hash;
-    if (hash) {
-      const [roomId, playerName] = hash.substring(1).split('/');
-      if (roomId && playerName) {
-        setUrlRoomInfo({ roomId, playerName });
-      }
+  // Modal handlers
+  const handleCreateRoomClose = () => {
+    // Send leave room command to server if in a room
+    if (currentPlayerId && currentRoomId) {
+      socketService.leaveRoom(currentPlayerId);
     }
-  }, []);
+    
+    setShowCreateRoomModal(false);
+    setJoinError('');
+    
+    // Reset room state when closing modal
+    setCurrentRoomId(null);
+    setCurrentPlayerName('');
+    setRoomPlayers([]);
+    setIsRoomLeader(false);
+    setIsMultiplayer(false);
+    setCurrentPlayerId(null);
+    setCurrentGameId(null);
+    // Update URL to remove room hash
+    window.location.hash = '';
+  };
 
-  // Auto-join room if URL hash is present
-  useEffect(() => {
-    if (urlRoomInfo && !autoJoinAttempted) {
-      setJoinRoomId(urlRoomInfo.roomId);
-      setJoinUsername(urlRoomInfo.playerName);
-      handleJoinRoom();
-      setAutoJoinAttempted(true);
+  const handleJoinRoomClose = () => {
+    // Send leave room command to server if in a room
+    if (currentPlayerId && currentRoomId) {
+      socketService.leaveRoom(currentPlayerId);
     }
-  }, [urlRoomInfo, autoJoinAttempted]);
+    
+    setShowJoinRoomModal(false);
+    setJoinError('');
+    setJoinRoomId('');
+    setJoinUsername('');
+    setWaitingForRematch(false);
+    // Reset room state when closing modal
+    setCurrentRoomId(null);
+    setCurrentPlayerName('');
+    setRoomPlayers([]);
+    setIsRoomLeader(false);
+    setIsMultiplayer(false);
+    setCurrentPlayerId(null);
+    setCurrentGameId(null);
+    // Update URL to remove room hash
+    window.location.hash = '';
+  };
+
+  const handleGameOverReplay = () => {
+    // Save score and stats before resetting
+    if (score > 0 || lines > 0) {
+      updateHighScores(score);
+      updateGameStats(score, lines, isMultiplayer, false);
+    }
+    resetGameState();
+  };
+
+  const handleGameOverGoToLobby = () => {
+    // Save score and stats before going to lobby
+    if (score > 0 || lines > 0) {
+      updateHighScores(score);
+      updateGameStats(score, lines, isMultiplayer, false);
+    }
+    setInLobby(true);
+    setPlaying(false);
+    setGameOver(false);
+    // Reset all game state to initial values
+    setPile(emptyBoard);
+    setPieceIndex(0);
+    setCurrentType(getNextPiece(pieceSequence, 0));
+    setNextType(getNextPiece(pieceSequence, 1));
+    const newShape = getTetromino(getNextPiece(pieceSequence, 0)).shape;
+    setShape(newShape);
+    setPos({ x: Math.floor((COLS - newShape[0].length) / 2), y: 0 });
+    setScore(0);
+    setLines(0);
+    setLockInput(false);
+    setPendingNewPiece(false);
+  };
+
+  const handleGameOverRematch = () => {
+    // Save score and stats before rejoining
+    if (score > 0 || lines > 0) {
+      updateHighScores(score);
+      updateGameStats(score, lines, isMultiplayer, false);
+    }
+    
+    // Send ready signal to server
+    if (currentPlayerId) {
+      socketService.sendPlayerReady(currentPlayerId);
+    }
+    
+    // Set waiting for rematch state
+    setWaitingForRematch(true);
+    
+    // Reset game state but stay in multiplayer room
+    setPlaying(false);
+    setGameOver(false);
+    setMultiplayerGameEnded(false);
+    setGameWinner(null);
+    setEliminatedPlayers([]);
+    setPaused(false);
+    
+    // Reset all game state to initial values
+    setPile(emptyBoard);
+    setPieceIndex(0);
+    setCurrentType(getNextPiece(pieceSequence, 0));
+    setNextType(getNextPiece(pieceSequence, 1));
+    const newShape = getTetromino(getNextPiece(pieceSequence, 0)).shape;
+    setShape(newShape);
+    setPos({ x: Math.floor((COLS - newShape[0].length) / 2), y: 0 });
+    setScore(0);
+    setLines(0);
+    setLockInput(false);
+    setPendingNewPiece(false);
+    
+    // Stay in multiplayer room, waiting for leader to start new game
+    setShowCreateRoomModal(false);
+    setShowJoinRoomModal(true); // Show room modal to see players waiting
+  };
+
+  const handleMultiplayerGoToLobby = () => {
+    // Save score and stats before going to lobby
+    if (score > 0 || lines > 0) {
+      updateHighScores(score);
+      // Don't update stats here as they're already updated in onGameEnd for multiplayer
+    }
+    
+    // Send leave room command to server
+    if (currentPlayerId) {
+      socketService.leaveRoom(currentPlayerId);
+    }
+    
+    // Reset multiplayer state and go to lobby
+    setCurrentRoomId(null);
+    setCurrentPlayerName('');
+    setRoomPlayers([]);
+    setIsRoomLeader(false);
+    setIsMultiplayer(false);
+    setCurrentPlayerId(null);
+    setCurrentGameId(null);
+    
+    setInLobby(true);
+    setPlaying(false);
+    setGameOver(false);
+    setMultiplayerGameEnded(false);
+    setGameWinner(null);
+    setEliminatedPlayers([]);
+    setPaused(false);
+    
+    // Reset all game state to initial values
+    setPile(emptyBoard);
+    setPieceIndex(0);
+    setCurrentType(getNextPiece(pieceSequence, 0));
+    setNextType(getNextPiece(pieceSequence, 1));
+    const newShape = getTetromino(getNextPiece(pieceSequence, 0)).shape;
+    setShape(newShape);
+    setPos({ x: Math.floor((COLS - newShape[0].length) / 2), y: 0 });
+    setScore(0);
+    setLines(0);
+    setLockInput(false);
+    setPendingNewPiece(false);
+    
+    // Update URL to remove room hash
+    window.location.hash = '';
+  };
 
   return (
     <div style={{
@@ -1001,611 +989,32 @@ const App = () => {
           display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100vw', height: '100vh', position: 'relative',
         }}>
           {/* Panneau à gauche : Score + Next */}
-          <div style={{margin: 24, display: 'flex', flexDirection: 'column', gap: 48, zIndex: 2}}>
-            {/* Score/Level/Lines Panel */}
-            <div style={{width: 160, height: 160, background: '#222', borderRadius: 18, boxShadow: '0 2px 12px #0008', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: 16}}>
-              <div style={{fontWeight: 'bold', fontSize: 22, marginBottom: 8}}>SCORE</div>
-              <div style={{background: '#111', borderRadius: 8, width: 120, height: 32, marginBottom: 8, color: '#FFD700', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>{score}</div>
-              <div style={{fontWeight: 'bold', fontSize: 18, marginBottom: 4}}>LEVEL</div>
-              <div style={{background: '#111', borderRadius: 8, width: 120, height: 24, marginBottom: 8, color: '#FFD700', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>1</div>
-              <div style={{fontWeight: 'bold', fontSize: 18, marginBottom: 4}}>LINES</div>
-              <div style={{background: '#111', borderRadius: 8, width: 120, height: 24, color: '#FFD700', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>{lines}</div>
-            </div>
-            
-            {/* Next Panel en bas du score */}
-            <div style={{width: 160, height: playing ? 180 : 120, background: '#222', borderRadius: 18, boxShadow: '0 2px 12px #0008', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: 12}}>
-              <div style={{fontWeight: 'bold', fontSize: 22, marginBottom: 8}}>NEXT</div>
-              <div style={{background: '#111', borderRadius: 8, width: 120, height: 80, marginBottom: playing ? 12 : 0, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-                <NextPiecePreview type={nextType} />
-              </div>
-              
-              {/* Boutons Pause et Quit - seulement quand on joue */}
-              {playing && (
-                <>
-                  <button
-                    onClick={togglePause}
-                    style={{
-                      width: 120,
-                      height: 28,
-                      borderRadius: 8,
-                      border: 'none',
-                      background: paused ? '#4CAF50' : '#FF9800',
-                      color: 'white',
-                      fontWeight: 'bold',
-                      fontSize: 12,
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-                      marginBottom: 6
-                    }}
-                  >
-                    {paused ? '▶ REPRENDRE' : '⏸ PAUSE'}
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      // Save score and stats before quitting
-                      if (score > 0 || lines > 0) {
-                        updateHighScores(score);
-                        updateGameStats(score, lines, isMultiplayer, false);
-                      }
-                      
-                      // If in multiplayer, send game-over to server to eliminate player
-                      if (isMultiplayer && currentPlayerId) {
-                        socketService.sendGameOver(currentPlayerId);
-                      }
-                      
-                      // Trigger game over state to show end game popup
-                      setGameOver(true);
-                      setPlaying(false);
-                      setPaused(false);
-                    }}
-                    style={{
-                      width: 120,
-                      height: 28,
-                      borderRadius: 8,
-                      border: 'none',
-                      background: '#f44336',
-                      color: 'white',
-                      fontWeight: 'bold',
-                      fontSize: 12,
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
-                    }}
-                  >
-                    🚪 QUITTER
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
+          <GameHUD
+            score={score}
+            lines={lines}
+            nextType={nextType}
+            playing={playing}
+            paused={paused}
+            isMultiplayer={isMultiplayer}
+            currentPlayerId={currentPlayerId}
+            onTogglePause={togglePause}
+            onQuit={handleQuitGame}
+            updateHighScores={updateHighScores}
+            updateGameStats={updateGameStats}
+            socketService={socketService}
+          />
           {/* Main Panel avec le jeu au centre */}
-          <div style={{
-            background: '#111',
-            borderRadius: 24,
-            boxShadow: '0 4px 32px #000a',
-            padding: 0,
-            minWidth: COLS * 32 + 16, // 10*32px + padding
-            minHeight: ROWS * 32 + 16, // 20*32px + padding
-            width: COLS * 32 + 16,
-            height: ROWS * 32 + 16,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-            zIndex: 3,
-            position: 'relative',
-            overflow: 'hidden',
-            paddingBottom: 24, // Ajoute du padding en bas pour équilibrer avec le haut
-          }}>
-            <div style={{
-              fontSize: 48,
-              fontWeight: 900,
-              letterSpacing: 2,
-              color: '#FFD700',
-              textShadow: '2px 2px 8px #000',
-              marginTop: 24,
-              marginBottom: 16,
-              width: '100%',
-              textAlign: 'center',
-              userSelect: 'none',
-            }}>
-              <span style={{color: '#FF3B3B'}}>T</span><span style={{color: '#FFD700'}}>E</span><span style={{color: '#00E6FF'}}>T</span><span style={{color: '#00FF00'}}>R</span><span style={{color: '#FF00FF'}}>I</span><span style={{color: '#FF3B3B'}}>S</span>
-            </div>
-            {/* Affiche le jeu si playing, sinon affiche le lobby */}
-            {playing ? (
-              <div style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '100%',
-                position: 'relative',
-              }}>
-                <div style={{margin: 0}}>
-                  <Board board={getDisplayBoard()} />
-                </div>
-              </div>
-            ) : (
-              <div style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '100%',
-              }}>
-                <button onClick={() => { setPlaying(true); }} style={{
-                  padding: '12px 0',
-                  fontSize: 20,
-                  borderRadius: 10,
-                  background: '#28a745',
-                  color: '#fff',
-                  border: 'none',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 8px #0006',
-                  marginBottom: 10,
-                  letterSpacing: 1,
-                  minWidth: 180,
-                  width: 180,
-                  textAlign: 'center',
-                  height: 44
-                }}>PLAY</button>
-                
-                <button 
-                  onClick={() => setShowCreateRoomModal(true)}
-                  style={{
-                    padding: '12px 0',
-                    fontSize: 20,
-                    borderRadius: 10,
-                    background: '#007bff',
-                    color: '#fff',
-                    border: 'none',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 8px #0006',
-                    marginBottom: 10,
-                    letterSpacing: 1,
-                    minWidth: 180,
-                    width: 180,
-                    textAlign: 'center',
-                    height: 44
-                  }}>CREATE ROOM</button>
-                <button onClick={() => setShowJoinRoomModal(true)} style={{
-                  padding: '12px 0',
-                  fontSize: 20,
-                  borderRadius: 10,
-                  background: '#ff9800',
-                  color: '#fff',
-                  border: 'none',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 8px #0006',
-                  marginBottom: 18,
-                  letterSpacing: 1,
-                  minWidth: 180,
-                  width: 180,
-                  textAlign: 'center',
-                  height: 44
-                }}>JOIN ROOM</button>
-                <div style={{background: '#222', borderRadius: 10, padding: '12px 24px', marginBottom: 18, width: 220}}>
-                  <div style={{fontWeight: 'bold', fontSize: 18, marginBottom: 6, color: '#FFD700'}}>HIGH SCORES</div>
-                  <div style={{fontSize: 16, color: '#fff'}}>
-                    {highScores.map((score, index) => (
-                      <div key={index} style={{
-                        display: 'flex', 
-                        justifyContent: 'space-between',
-                        marginBottom: 2,
-                        color: index === 0 ? '#FFD700' : '#fff'
-                      }}>
-                        <span>#{index + 1}</span>
-                        <span>{score.toLocaleString()}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                {/* Mode Game selection EN BAS, boutons en colonne */}
-                <div style={{
-                  marginTop: 24,
-                  fontSize: 20,
-                  color: '#fff',
-                  fontWeight: 'bold',
-                  background: '#222',
-                  borderRadius: 10,
-                  padding: '12px 16px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: 44,
-                  minWidth: 220,
-                  boxShadow: '0 1px 6px #0004',
-                  gap: 10,
-                }}>
-                  <span style={{fontSize: 18, letterSpacing: 1, marginBottom: 8}}>MODE :</span>
-                  <button
-                    style={{
-                      background: selectedMode === 'classic' ? '#FFD700' : '#444',
-                      color: selectedMode === 'classic' ? '#222' : '#fff',
-                      border: 'none',
-                      borderRadius: 8,
-                      padding: '8px 32px',
-                      fontWeight: 'bold',
-                      cursor: 'pointer',
-                      fontSize: 18,
-                      transition: 'background 0.2s, color 0.2s',
-                      boxShadow: selectedMode === 'classic' ? '0 2px 8px #FFD70055' : 'none',
-                      marginBottom: 6,
-                    }}
-                    onClick={() => handleModeChange('classic')}
-                  >Classic</button>
-                  <button
-                    style={{
-                      background: selectedMode === 'invisible' ? '#FFD700' : '#444',
-                      color: selectedMode === 'invisible' ? '#222' : '#fff',
-                      border: 'none',
-                      borderRadius: 8,
-                      padding: '8px 32px',
-                      fontWeight: 'bold',
-                      cursor: 'pointer',
-                      fontSize: 18,
-                      transition: 'background 0.2s, color 0.2s',
-                      boxShadow: selectedMode === 'invisible' ? '0 2px 8px #FFD70055' : 'none',
-                      marginBottom: 6,
-                    }}
-                    onClick={() => handleModeChange('invisible')}
-                  >Invisible</button>
-                  <button
-                    style={{
-                      background: selectedMode === 'gravity' ? '#FFD700' : '#444',
-                      color: selectedMode === 'gravity' ? '#222' : '#fff',
-                      border: 'none',
-                      borderRadius: 8,
-                      padding: '8px 32px',
-                      fontWeight: 'bold',
-                      cursor: 'pointer',
-                      fontSize: 18,
-                      transition: 'background 0.2s, color 0.2s',
-                      boxShadow: selectedMode === 'gravity' ? '0 2px 8px #FFD70055' : 'none',
-                    }}
-                    onClick={() => handleModeChange('gravity')}
-                  >Gravity+</button>
-                </div>
-              </div>
-            )}
-          </div>
+          <GameBoard
+            playing={playing}
+            displayBoard={getDisplayBoard()}
+            onPlay={() => setPlaying(true)}
+            onCreateRoom={() => setShowCreateRoomModal(true)}
+            onJoinRoom={() => setShowJoinRoomModal(true)}
+            highScores={highScores}
+            selectedMode={selectedMode}
+            onModeChange={handleModeChange}
+          />
           
-          {/* Game Over Overlay - Solo ou Eliminated en Multi */}
-          {gameOver && !multiplayerGameEnded && (
-            <div style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              width: '100vw',
-              height: '100vh',
-              background: 'rgba(0,0,0,0.9)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 1000
-            }}>
-              <div style={{
-                background: isMultiplayer ? '#5d1a1a' : '#222',
-                padding: '48px 64px',
-                borderRadius: 24,
-                boxShadow: '0 8px 48px #000',
-                textAlign: 'center',
-                color: isMultiplayer ? '#f44336' : '#FFD700',
-                fontSize: 40,
-                fontWeight: 900,
-                letterSpacing: 2,
-                border: isMultiplayer ? '3px solid #f44336' : 'none'
-              }}>
-                {isMultiplayer ? '💀 ELIMINATED!' : 'Game Over'}
-                <div style={{fontSize: 24, color: '#fff', marginTop: 16}}>
-                  Score : {score}
-                </div>
-                {isMultiplayer ? (
-                  <div style={{display: 'flex', gap: 20, marginTop: 32, justifyContent: 'center'}}>
-                    <button onClick={() => {
-                      // Save score and stats before rejoining
-                      if (score > 0 || lines > 0) {
-                        updateHighScores(score);
-                        updateGameStats(score, lines, isMultiplayer, false);
-                      }
-                      
-                      // Send ready signal to server
-                      if (currentPlayerId) {
-                        socketService.sendPlayerReady(currentPlayerId);
-                      }
-                      
-                      // Set waiting for rematch state
-                      setWaitingForRematch(true);
-                      
-                      // Reset game state but stay in multiplayer room
-                      setPlaying(false);
-                      setGameOver(false);
-                      setMultiplayerGameEnded(false);
-                      setGameWinner(null);
-                      setEliminatedPlayers([]);
-                      setPaused(false);
-                      
-                      // Reset all game state to initial values
-                      setPile(emptyBoard);
-                      setPieceIndex(0);
-                      setCurrentType(getNextPiece(pieceSequence, 0));
-                      setNextType(getNextPiece(pieceSequence, 1));
-                      const newShape = getTetromino(getNextPiece(pieceSequence, 0)).shape;
-                      setShape(newShape);
-                      setPos({ x: Math.floor((COLS - newShape[0].length) / 2), y: 0 });
-                      setScore(0);
-                      setLines(0);
-                      setLockInput(false);
-                      setPendingNewPiece(false);
-                      
-                      // Stay in multiplayer room, waiting for leader to start new game
-                      setShowCreateRoomModal(false);
-                      setShowJoinRoomModal(true); // Show room modal to see players waiting
-                    }} style={{
-                      padding: '16px 32px', 
-                      fontSize: 20, 
-                      borderRadius: 12, 
-                      background: '#4CAF50', 
-                      color: '#fff', 
-                      border: 'none', 
-                      fontWeight: 'bold', 
-                      cursor: 'pointer', 
-                      boxShadow: '0 4px 16px #0008'
-                    }}>
-                      🔄 REJOUER
-                    </button>
-                    
-                    <button onClick={() => {
-                      // Save score and stats before going to lobby
-                      if (score > 0 || lines > 0) {
-                        updateHighScores(score);
-                        updateGameStats(score, lines, isMultiplayer, false);
-                      }
-                      
-                      // Send leave room command to server
-                      if (currentPlayerId) {
-                        socketService.leaveRoom(currentPlayerId);
-                      }
-                      
-                      // Reset multiplayer state and go to lobby
-                      setCurrentRoomId(null);
-                      setCurrentPlayerName('');
-                      setRoomPlayers([]);
-                      setIsRoomLeader(false);
-                      setIsMultiplayer(false);
-                      setCurrentPlayerId(null);
-                      setCurrentGameId(null);
-                      
-                      setInLobby(true);
-                      setPlaying(false);
-                      setGameOver(false);
-                      setMultiplayerGameEnded(false);
-                      setGameWinner(null);
-                      setEliminatedPlayers([]);
-                      setPaused(false);
-                      
-                      // Reset all game state to initial values
-                      setPile(emptyBoard);
-                      setPieceIndex(0);
-                      setCurrentType(getNextPiece(pieceSequence, 0));
-                      setNextType(getNextPiece(pieceSequence, 1));
-                      const newShape = getTetromino(getNextPiece(pieceSequence, 0)).shape;
-                      setShape(newShape);
-                      setPos({ x: Math.floor((COLS - newShape[0].length) / 2), y: 0 });
-                      setScore(0);
-                      setLines(0);
-                      setLockInput(false);
-                      setPendingNewPiece(false);
-                      
-                      // Update URL to remove room hash
-                      window.location.hash = '';
-                    }} style={{
-                      padding: '16px 32px', 
-                      fontSize: 20, 
-                      borderRadius: 12, 
-                      background: '#007bff', 
-                      color: '#fff', 
-                      border: 'none', 
-                      fontWeight: 'bold', 
-                      cursor: 'pointer', 
-                      boxShadow: '0 4px 16px #0008'
-                    }}>
-                      🏠 LOBBY
-                    </button>
-                  </div>
-                ) : (
-                  <div style={{fontSize: 18, color: '#ccc', marginTop: 12}}>
-                    Partie terminée
-                  </div>
-                )}
-                {!isMultiplayer && (
-                  <>
-                    <button onClick={handleReset} style={{marginTop: 32, padding: '14px 40px', fontSize: 22, borderRadius: 10, background: '#28a745', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 8px #0006'}}>Rejouer</button>
-                    <button onClick={() => {
-                      // Save score and stats before going to lobby
-                      if (score > 0 || lines > 0) {
-                        updateHighScores(score);
-                        updateGameStats(score, lines, isMultiplayer, false);
-                      }
-                      setInLobby(true);
-                      setPlaying(false);
-                      setGameOver(false);
-                      // Reset all game state to initial values
-                      setPile(emptyBoard);
-                      setPieceIndex(0);
-                      setCurrentType(getNextPiece(pieceSequence, 0));
-                      setNextType(getNextPiece(pieceSequence, 1));
-                      const newShape = getTetromino(getNextPiece(pieceSequence, 0)).shape;
-                      setShape(newShape);
-                      setPos({ x: Math.floor((COLS - newShape[0].length) / 2), y: 0 });
-                      setScore(0);
-                      setLines(0);
-                      setLockInput(false);
-                      setPendingNewPiece(false);
-                    }} style={{marginTop: 18, padding: '12px 36px', fontSize: 20, borderRadius: 10, background: '#007bff', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 8px #0006'}}>Go to Lobby</button>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Victory/Defeat Overlay - Fin de partie multijoueur */}
-          {multiplayerGameEnded && gameWinner && (
-            <div style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              width: '100vw',
-              height: '100vh',
-              background: 'rgba(0,0,0,0.9)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 1001
-            }}>
-              <div style={{
-                background: gameWinner.id === currentPlayerId ? '#1a5d1a' : '#5d1a1a',
-                padding: '48px 64px',
-                borderRadius: 24,
-                boxShadow: '0 8px 48px #000',
-                textAlign: 'center',
-                color: gameWinner.id === currentPlayerId ? '#4CAF50' : '#f44336',
-                fontSize: 40,
-                fontWeight: 900,
-                letterSpacing: 2,
-                border: `3px solid ${gameWinner.id === currentPlayerId ? '#4CAF50' : '#f44336'}`
-              }}>
-                {gameWinner.id === currentPlayerId ? '🏆 WINNER!' : '💀 GAME OVER'}
-                <div style={{fontSize: 24, color: '#fff', marginTop: 16}}>
-                  {gameWinner.id === currentPlayerId 
-                    ? 'Félicitations! Tu as gagné!' 
-                    : `${gameWinner.name} a gagné!`}
-                </div>
-                <div style={{fontSize: 18, color: '#ccc', marginTop: 12}}>Score final : {score}</div>
-                
-                <div style={{display: 'flex', gap: 20, marginTop: 32, justifyContent: 'center'}}>
-                  <button onClick={() => {
-                    // Save score and stats before rejoining
-                    if (score > 0 || lines > 0) {
-                      updateHighScores(score);
-                      // Don't update stats here as they're already updated in onGameEnd for multiplayer
-                    }
-                    
-                    // Send ready signal to server
-                    if (currentPlayerId) {
-                      socketService.sendPlayerReady(currentPlayerId);
-                    }
-                    
-                    // Set waiting for rematch state
-                    setWaitingForRematch(true);
-                    
-                    // Reset game state but stay in multiplayer room
-                    setPlaying(false);
-                    setGameOver(false);
-                    setMultiplayerGameEnded(false);
-                    setGameWinner(null);
-                    setEliminatedPlayers([]);
-                    setPaused(false);
-                    
-                    // Reset all game state to initial values
-                    setPile(emptyBoard);
-                    setPieceIndex(0);
-                    setCurrentType(getNextPiece(pieceSequence, 0));
-                    setNextType(getNextPiece(pieceSequence, 1));
-                    const newShape = getTetromino(getNextPiece(pieceSequence, 0)).shape;
-                    setShape(newShape);
-                    setPos({ x: Math.floor((COLS - newShape[0].length) / 2), y: 0 });
-                    setScore(0);
-                    setLines(0);
-                    setLockInput(false);
-                    setPendingNewPiece(false);
-                    
-                    // Stay in multiplayer room, waiting for leader to start new game
-                    setShowCreateRoomModal(false);
-                    setShowJoinRoomModal(true); // Show room modal to see players waiting
-                  }} style={{
-                    padding: '16px 32px', 
-                    fontSize: 20, 
-                    borderRadius: 12, 
-                    background: '#4CAF50', 
-                    color: '#fff', 
-                    border: 'none', 
-                    fontWeight: 'bold', 
-                    cursor: 'pointer', 
-                    boxShadow: '0 4px 16px #0008'
-                  }}>
-                    🔄 REJOUER
-                  </button>
-                  
-                  <button onClick={() => {
-                    // Save score and stats before going to lobby
-                    if (score > 0 || lines > 0) {
-                      updateHighScores(score);
-                      // Don't update stats here as they're already updated in onGameEnd for multiplayer
-                    }
-                    
-                    // Send leave room command to server
-                    if (currentPlayerId) {
-                      socketService.leaveRoom(currentPlayerId);
-                    }
-                    
-                    // Reset multiplayer state and go to lobby
-                    setCurrentRoomId(null);
-                    setCurrentPlayerName('');
-                    setRoomPlayers([]);
-                    setIsRoomLeader(false);
-                    setIsMultiplayer(false);
-                    setCurrentPlayerId(null);
-                    setCurrentGameId(null);
-                    
-                    setInLobby(true);
-                    setPlaying(false);
-                    setGameOver(false);
-                    setMultiplayerGameEnded(false);
-                    setGameWinner(null);
-                    setEliminatedPlayers([]);
-                    setPaused(false);
-                    
-                    // Reset all game state to initial values
-                    setPile(emptyBoard);
-                    setPieceIndex(0);
-                    setCurrentType(getNextPiece(pieceSequence, 0));
-                    setNextType(getNextPiece(pieceSequence, 1));
-                    const newShape = getTetromino(getNextPiece(pieceSequence, 0)).shape;
-                    setShape(newShape);
-                    setPos({ x: Math.floor((COLS - newShape[0].length) / 2), y: 0 });
-                    setScore(0);
-                    setLines(0);
-                    setLockInput(false);
-                    setPendingNewPiece(false);
-                    
-                    // Update URL to remove room hash
-                    window.location.hash = '';
-                  }} style={{
-                    padding: '16px 32px', 
-                    fontSize: 20, 
-                    borderRadius: 12, 
-                    background: '#007bff', 
-                    color: '#fff', 
-                    border: 'none', 
-                    fontWeight: 'bold', 
-                    cursor: 'pointer', 
-                    boxShadow: '0 4px 16px #0008'
-                  }}>
-                    🏠 LOBBY
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
           
           {/* Opponents Panel à droite - toujours visible */}
           <div style={{margin: 24, zIndex: 2}}>
@@ -1762,499 +1171,51 @@ const App = () => {
             </div>
           )}
           {/* Modal CREATE ROOM dans le lobby */}
-          {showCreateRoomModal && (
-            <div style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              width: '100vw',
-              height: '100vh',
-              background: 'rgba(0,0,0,0.85)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 100
-            }}>
-              <div style={{
-                background: '#222',
-                padding: '40px 32px 32px 32px',
-                borderRadius: 24,
-                boxShadow: '0 4px 32px #000a',
-                textAlign: 'center',
-                color: '#FFD700',
-                minWidth: 340,
-                minHeight: 320,
-                position: 'relative'
-              }}>
-                <div style={{fontSize: 30, fontWeight: 900, marginBottom: 12, letterSpacing: 2}}>Créer une Room</div>
-                <div style={{
-                  fontSize: 14, 
-                  color: '#4CAF50', 
-                  marginBottom: 18, 
-                  padding: '8px 12px',
-                  backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                  borderRadius: 8,
-                  border: '1px solid rgba(76, 175, 80, 0.3)'
-                }}>
-                  👑 Vous serez le leader et pourrez lancer le jeu pour tous les joueurs
-                </div>
-                <div style={{fontSize: 18, color: '#fff', marginBottom: 10}}>ID de la Room : <span style={{color: '#FFD700', fontWeight: 'bold'}}>{createRoomId}</span></div>
-                {joinError && (
-                  <div style={{color: '#ff4444', fontSize: 16, marginBottom: 10, fontWeight: 'bold'}}>
-                    {joinError}
-                  </div>
-                )}
-                
-                {/* Show username input and validate button only if room is not created yet */}
-                {!currentRoomId && (
-                  <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 18}}>
-                    <input
-                      type="text"
-                      placeholder="Entrez votre nom"
-                      value={username}
-                      onChange={e => setUsername(e.target.value)}
-                      style={{
-                        padding: '10px',
-                        fontSize: 18,
-                        borderRadius: 8,
-                        border: '1px solid #FFD700',
-                        outline: 'none',
-                        color: '#222',
-                        background: '#fff',
-                        flex: 1,
-                        minWidth: 200
-                      }}
-                      onKeyDown={e => { if (e.key === 'Enter') handleValidateUsername(); }}
-                    />
-                    <button
-                      onClick={handleValidateUsername}
-                      style={{
-                        padding: '10px 16px',
-                        fontSize: 16,
-                        borderRadius: 8,
-                        background: '#28a745',
-                        color: '#fff',
-                        border: 'none',
-                        fontWeight: 'bold',
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap'
-                      }}
-                    >Valider</button>
-                  </div>
-                )}
-                
-                {/* Show room status if already created */}
-                {currentRoomId && (
-                  <div style={{
-                    fontSize: 16, 
-                    color: '#4CAF50', 
-                    marginBottom: 18, 
-                    padding: '12px',
-                    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                    borderRadius: 8,
-                    border: '1px solid rgba(76, 175, 80, 0.3)',
-                    textAlign: 'center'
-                  }}>
-                    ✅ Room créée avec succès ! En attente d'autres joueurs...
-                    <div style={{marginTop: 12, fontSize: 14, color: '#fff'}}>
-                      <strong>Lien à partager :</strong>
-                      <div style={{
-                        marginTop: 8,
-                        padding: '8px 12px',
-                        backgroundColor: '#2a2a2a',
-                        borderRadius: 6,
-                        fontFamily: 'monospace',
-                        fontSize: 13,
-                        color: '#FFD700',
-                        wordBreak: 'break-all',
-                        cursor: 'pointer',
-                        border: '1px solid #555'
-                      }}
-                      onClick={() => {
-                        const link = `${window.location.origin}/#${currentRoomId}[PLAYER_NAME]`;
-                        navigator.clipboard.writeText(link);
-                        // Show a temporary feedback
-                        const elem = document.createElement('div');
-                        elem.textContent = 'Lien copié !';
-                        elem.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#4CAF50;color:white;padding:12px 24px;border-radius:8px;z-index:10000;font-weight:bold;';
-                        document.body.appendChild(elem);
-                        setTimeout(() => document.body.removeChild(elem), 2000);
-                      }}>
-                        {`${window.location.origin}/#${currentRoomId}[PLAYER_NAME]`}
-                      </div>
-                      <div style={{fontSize: 12, color: '#ccc', marginTop: 4}}>
-                        Cliquez pour copier (remplacez PLAYER_NAME par le nom du joueur)
-                      </div>
-                    </div>
-                  </div>
-                )}
-                <div style={{marginTop: 6, color: '#fff', fontSize: 18, fontWeight: 'bold'}}>Joueurs dans la room :</div>
-                <ul style={{listStyle: 'none', padding: 0, margin: '10px 0 20px 0', color: '#FFD700', fontSize: 18}}>
-                  {(!roomPlayers || roomPlayers.length === 0) && (
-                    <li style={{color: '#fff', fontSize: 16, fontStyle: 'italic'}}>
-                      {currentRoomId ? 'En attente de joueurs...' : 'Aucun joueur'}
-                    </li>
-                  )}
-                  {roomPlayers && roomPlayers.map((player, i) => (
-                    <li key={`player-${i}`} style={{margin: '4px 0', color: player.isLeader ? '#FFD700' : '#4CAF50'}}>
-                      {player.name} {player.isLeader && '👑 (Leader)'}
-                    </li>
-                  ))}
-                </ul>
-                
-                {/* Show START GAME button only if already in a room and is leader */}
-                {currentRoomId && isRoomLeader && (
-                  <button
-                    onClick={handleStartMultiplayerGame}
-                    style={{
-                      padding: '12px 32px',
-                      fontSize: 20,
-                      borderRadius: 10,
-                      background: '#ff6600',
-                      color: '#fff',
-                      border: 'none',
-                      fontWeight: 'bold',
-                      cursor: 'pointer',
-                      boxShadow: '0 2px 8px #0006',
-                      letterSpacing: 1,
-                      marginBottom: 10
-                    }}
-                  >START GAME</button>
-                )}
-                
-                {/* The room creation happens automatically when validating username */}
-                <button
-                  onClick={() => {
-                    // Send leave room command to server if in a room
-                    if (currentPlayerId && currentRoomId) {
-                      socketService.leaveRoom(currentPlayerId);
-                    }
-                    
-                    setShowCreateRoomModal(false);
-                    setJoinError('');
-                    
-                    // Reset room state when closing modal
-                    setCurrentRoomId(null);
-                    setCurrentPlayerName('');
-                    setRoomPlayers([]);
-                    setIsRoomLeader(false);
-                    setIsMultiplayer(false);
-                    setCurrentPlayerId(null);
-                    setCurrentGameId(null);
-                    // Update URL to remove room hash
-                    window.location.hash = '';
-                  }}
-                  style={{
-                    position: 'absolute',
-                    top: 12,
-                    right: 18,
-                    background: 'transparent',
-                    color: '#FFD700',
-                    border: 'none',
-                    fontSize: 28,
-                    cursor: 'pointer',
-                    fontWeight: 'bold',
-                  }}
-                  title="Fermer"
-                >×</button>
-              </div>
-            </div>
-          )}
+          <CreateRoomModal
+            isOpen={showCreateRoomModal}
+            onClose={handleCreateRoomClose}
+            createRoomId={createRoomId}
+            username={username}
+            setUsername={setUsername}
+            currentRoomId={currentRoomId}
+            isRoomLeader={isRoomLeader}
+            roomPlayers={roomPlayers}
+            onValidateUsername={handleValidateUsername}
+            onStartGame={handleStartMultiplayerGame}
+            onLeaveRoom={handleCreateRoomClose}
+            joinError={joinError}
+          />
 
           {/* Modal JOIN ROOM */}
-          {showJoinRoomModal && (
-            <div style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0, 0, 0, 0.8)',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              zIndex: 1000
-            }}>
-              <div style={{
-                backgroundColor: '#1a1a1a',
-                border: '3px solid #FFD700',
-                borderRadius: 15,
-                padding: 24,
-                minWidth: 350,
-                maxWidth: 500,
-                color: '#fff',
-                position: 'relative',
-                boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)'
-              }}>
-                <h2 style={{
-                  margin: '0 0 12px 0',
-                  color: '#FFD700',
-                  textAlign: 'center',
-                  fontSize: 24,
-                  fontWeight: 'bold'
-                }}>{waitingForRematch ? 'EN ATTENTE DU REMATCH' : 'REJOINDRE UNE ROOM'}</h2>
-                
-                {waitingForRematch ? (
-                  <div style={{
-                    fontSize: 16, 
-                    color: '#4CAF50', 
-                    marginBottom: 20, 
-                    padding: '12px',
-                    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                    borderRadius: 8,
-                    border: '1px solid rgba(76, 175, 80, 0.3)',
-                    textAlign: 'center'
-                  }}>
-                    🔄 Prêt pour le rematch ! En attente que le leader lance la nouvelle partie...
-                  </div>
-                ) : (
-                  <div style={{
-                    fontSize: 14, 
-                    color: '#ff9800', 
-                    marginBottom: 20, 
-                    padding: '8px 12px',
-                    backgroundColor: 'rgba(255, 152, 0, 0.1)',
-                    borderRadius: 8,
-                    border: '1px solid rgba(255, 152, 0, 0.3)',
-                    textAlign: 'center'
-                  }}>
-                    Seul le leader de la room peut lancer le jeu
-                  </div>
-                )}
+          <JoinRoomModal
+            isOpen={showJoinRoomModal}
+            onClose={handleJoinRoomClose}
+            waitingForRematch={waitingForRematch}
+            joinRoomId={joinRoomId}
+            setJoinRoomId={setJoinRoomId}
+            joinUsername={joinUsername}
+            setJoinUsername={setJoinUsername}
+            joinError={joinError}
+            currentRoomId={currentRoomId}
+            isJoiningRoom={isJoiningRoom}
+            roomPlayers={roomPlayers}
+            isRoomLeader={isRoomLeader}
+            onJoinRoom={handleJoinRoom}
+            onStartGame={handleStartMultiplayerGame}
+          />
 
-                <div style={{
-                  fontSize: 13, 
-                  color: '#00bcd4', 
-                  marginBottom: 15, 
-                  padding: '8px 12px',
-                  backgroundColor: 'rgba(0, 188, 212, 0.1)',
-                  borderRadius: 8,
-                  border: '1px solid rgba(0, 188, 212, 0.3)',
-                  textAlign: 'center'
-                }}>
-                  💡 <strong>Astuce :</strong> Vous pouvez rejoindre directement via l'URL<br/>
-                  <code style={{fontSize: 11, fontFamily: 'monospace'}}>
-                    {window.location.origin}/#ROOM123[VotreNom]
-                  </code>
-                </div>
-
-                {/* Show room ID input only if not in a room yet */}
-                {!currentRoomId && (
-                  <div style={{ marginBottom: 15 }}>
-                    <label style={{
-                      display: 'block',
-                      marginBottom: 8,
-                      color: '#FFD700',
-                      fontWeight: 'bold'
-                    }}>ID DE LA ROOM:</label>
-                    <input
-                      type="text"
-                      value={joinRoomId}
-                      onChange={(e) => setJoinRoomId(e.target.value.toUpperCase())}
-                      placeholder="Entrez l'ID de la room"
-                      style={{
-                        width: '100%',
-                        padding: 10,
-                        border: '2px solid #333',
-                        borderRadius: 8,
-                        backgroundColor: '#2a2a2a',
-                        color: '#fff',
-                        fontSize: 16,
-                        outline: 'none'
-                      }}
-                      onKeyDown={e => { if (e.key === 'Enter') handleJoinRoom(); }}
-                    />
-                  </div>
-                )}
-
-                {/* Show username input and join button only if not in a room yet */}
-                {!currentRoomId && (
-                  <div style={{ marginBottom: 20 }}>
-                    <label style={{
-                      display: 'block',
-                      marginBottom: 8,
-                      color: '#FFD700',
-                      fontWeight: 'bold'
-                    }}>VOTRE NOM:</label>
-                    <div style={{ display: 'flex', gap: 10 }}>
-                      <input
-                        type="text"
-                        value={joinUsername}
-                        onChange={(e) => setJoinUsername(e.target.value)}
-                        placeholder="Entrez votre nom"
-                        style={{
-                          flex: 1,
-                          padding: 10,
-                          border: '2px solid #333',
-                          borderRadius: 8,
-                          backgroundColor: '#2a2a2a',
-                          color: '#fff',
-                          fontSize: 16,
-                          outline: 'none'
-                        }}
-                        onKeyDown={e => { if (e.key === 'Enter') handleValidateJoinUsername(); }}
-                      />
-                      <button
-                        onClick={handleValidateJoinUsername}
-                        style={{
-                          padding: '10px 20px',
-                          fontSize: 16,
-                          borderRadius: 8,
-                          background: '#4CAF50',
-                          color: '#fff',
-                          border: 'none',
-                          fontWeight: 'bold',
-                          cursor: 'pointer',
-                          boxShadow: '0 2px 8px #0006'
-                        }}
-                      >Rejoindre</button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Show loading state when trying to join */}
-                {isJoiningRoom && !currentRoomId && (
-                  <div style={{
-                    fontSize: 16, 
-                    color: '#ff9800', 
-                    marginBottom: 20, 
-                    padding: '12px',
-                    backgroundColor: 'rgba(255, 152, 0, 0.1)',
-                    borderRadius: 8,
-                    border: '1px solid rgba(255, 152, 0, 0.3)',
-                    textAlign: 'center'
-                  }}>
-                    🔄 Tentative de rejoindre la room...
-                  </div>
-                )}
-
-                {/* Show room status if already joined */}
-                {currentRoomId && (
-                  <div style={{
-                    fontSize: 16, 
-                    color: '#4CAF50', 
-                    marginBottom: 20, 
-                    padding: '12px',
-                    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                    borderRadius: 8,
-                    border: '1px solid rgba(76, 175, 80, 0.3)',
-                    textAlign: 'center'
-                  }}>
-                    ✅ Rejoint la room {currentRoomId} avec succès !
-                  </div>
-                )}
-
-                {joinError && (
-                  <div style={{
-                    color: '#ff4444',
-                    marginBottom: 15,
-                    textAlign: 'center',
-                    fontSize: 14,
-                    fontWeight: 'bold'
-                  }}>
-                    {joinError}
-                  </div>
-                )}
-
-                {/* Show players list if in a room */}
-                {currentRoomId && (
-                  <div style={{ marginBottom: 20 }}>
-                    <h3 style={{
-                      color: '#FFD700',
-                      marginBottom: 10,
-                      fontSize: 18
-                    }}>JOUEURS DANS LA ROOM:</h3>
-                    <div style={{
-                      maxHeight: 120,
-                      overflowY: 'auto',
-                      border: '1px solid #333',
-                      borderRadius: 8,
-                      padding: 8,
-                      backgroundColor: '#2a2a2a'
-                    }}>
-                      {(!roomPlayers || roomPlayers.length === 0) ? (
-                        <div style={{
-                          padding: '4px 8px',
-                          color: '#fff',
-                          fontStyle: 'italic'
-                        }}>
-                          Chargement des joueurs...
-                        </div>
-                      ) : (
-                        roomPlayers.map((player, index) => (
-                          <div key={index} style={{
-                            padding: '4px 8px',
-                            borderBottom: index < roomPlayers.length - 1 ? '1px solid #444' : 'none',
-                            color: player.isLeader ? '#FFD700' : '#fff'
-                          }}>
-                            {player.name} {player.isLeader && '👑'}
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Show START GAME button only if current user is the leader */}
-                {isRoomLeader && currentRoomId && (
-                  <button
-                    onClick={handleStartMultiplayerGame}
-                    style={{
-                      padding: '12px 32px',
-                      fontSize: 20,
-                      borderRadius: 10,
-                      background: '#ff6600',
-                      color: '#fff',
-                      border: 'none',
-                      fontWeight: 'bold',
-                      cursor: 'pointer',
-                      boxShadow: '0 2px 8px #0006',
-                      letterSpacing: 1,
-                      marginBottom: 15,
-                      width: '100%'
-                    }}
-                  >START GAME (Leader)</button>
-                )}
-
-                <button
-                  onClick={() => {
-                    // Send leave room command to server if in a room
-                    if (currentPlayerId && currentRoomId) {
-                      socketService.leaveRoom(currentPlayerId);
-                    }
-                    
-                    setShowJoinRoomModal(false);
-                    setJoinError('');
-                    setJoinRoomId('');
-                    setJoinUsername('');
-                    setWaitingForRematch(false);
-                    // Reset room state when closing modal
-                    setCurrentRoomId(null);
-                    setCurrentPlayerName('');
-                    setRoomPlayers([]);
-                    setIsRoomLeader(false);
-                    setIsMultiplayer(false);
-                    setCurrentPlayerId(null);
-                    setCurrentGameId(null);
-                    // Update URL to remove room hash
-                    window.location.hash = '';
-                  }}
-                  style={{
-                    position: 'absolute',
-                    top: 12,
-                    right: 18,
-                    background: 'transparent',
-                    color: '#FFD700',
-                    border: 'none',
-                    fontSize: 28,
-                    cursor: 'pointer',
-                    fontWeight: 'bold',
-                  }}
-                  title="Fermer"
-                >×</button>
-              </div>
-            </div>
-          )}
+          {/* Game Over Modals */}
+          <GameOverModal
+            gameOver={gameOver}
+            multiplayerGameEnded={multiplayerGameEnded}
+            gameWinner={gameWinner}
+            currentPlayerId={currentPlayerId}
+            score={score}
+            isMultiplayer={isMultiplayer}
+            onReplay={handleGameOverReplay}
+            onGoToLobby={multiplayerGameEnded ? handleMultiplayerGoToLobby : handleGameOverGoToLobby}
+            onRematch={handleGameOverRematch}
+          />
         </div>
       ) : null}
 

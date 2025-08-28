@@ -62,6 +62,9 @@ export const TETROMINO_SPAWN_POSITIONS = {
 
 // Fonction pure pour faire tourner une matrice (sens horaire)
 export function rotate(matrix) {
+  if (!matrix || !matrix.length || !matrix[0]) {
+    return [];
+  }
   return matrix[0].map((_, i) => matrix.map(row => row[i]).reverse());
 }
 
@@ -73,11 +76,22 @@ export function randomTetromino() {
 }
 
 // Utility to get a tetromino object by type, including shape, color, and spawn position
+// Returns deep copies to prevent mutations
 export function getTetromino(type) {
+  // Check if type is valid
+  if (!type || !TETROMINOS[type]) {
+    return {
+      type,
+      shape: undefined,
+      color: undefined,
+      spawn: undefined,
+    };
+  }
+  
   return {
     type,
-    shape: TETROMINOS[type],
+    shape: JSON.parse(JSON.stringify(TETROMINOS[type])), // Deep copy to prevent mutation
     color: TETROMINO_COLORS[type],
-    spawn: TETROMINO_SPAWN_POSITIONS[type],
+    spawn: { ...TETROMINO_SPAWN_POSITIONS[type] }, // Shallow copy for spawn position
   };
 }

@@ -9,14 +9,14 @@ describe('Socket Event Handlers', function() {
   let tetrisServer;
   let clientSocket;
 
-  before(function(done) {
+  beforeAll(function(done) {
     startServer(params.server, function(err, server) {
       tetrisServer = server;
       done();
     });
   });
 
-  after(function(done) {
+  afterAll(function(done) {
     if (clientSocket) clientSocket.disconnect();
     tetrisServer.stop(done);
   });

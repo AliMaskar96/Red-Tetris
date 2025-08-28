@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useCallback } from 'react'
+import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react'
 import Board, { NextPiecePreview } from '../components/Board'
 import { getTetromino } from '../utils/tetrominos'
 import {placePiece,clearLines,checkCollision,createEmptyBoard,rotatePiece,movePiece,
@@ -158,6 +158,133 @@ const App = () => {
     getOpponents
   } = multiplayerState;
 
+  const [lockDelayActive, setLockDelayActive] = useState(false);
+  const lockDelayTimerRef = useRef(null);
+
+  // Helper to check if piece is colliding at current position
+  const isPieceColliding = useCallback(() => {
+    return checkCollision(shape, pile, pos.x, pos.y + 1);
+  }, [shape, pile, pos.x, pos.y]);
+
+  // Enhanced gravity/game tick with lock delay
+  useEffect(() => {
+    if (!playing || gameOver || multiplayerGameEnded || paused) return;
+    let interval;
+    interval = setInterval(() => {
+      setPos(currentPos => {
+        if (!checkCollision(shape, pile, currentPos.x, currentPos.y + 1)) {
+          // If not colliding, move piece down
+          if (lockDelayActive) {
+            setLockDelayActive(false);
+            if (lockDelayTimerRef.current) clearTimeout(lockDelayTimerRef.current);
+          }
+          return { ...currentPos, y: currentPos.y + 1 };
+        } else {
+          // If colliding, start lock delay if not already active
+          if (!lockDelayActive) {
+            setLockDelayActive(true);
+            if (lockDelayTimerRef.current) clearTimeout(lockDelayTimerRef.current);
+            lockDelayTimerRef.current = setTimeout(() => {
+              // After lock delay, lock the piece if still colliding
+              if (isPieceColliding()) {
+                setPendingNewPiece(true);
+                setPile(pile => {
+                  const merged = placePiece(shape, pile, pos.x, pos.y);
+                  let newBoard, linesCleared;
+                  if (selectedMode === GAME_MODES.GRAVITY) {
+                    ({ newBoard, linesCleared } = require('../utils/gameLogic').clearLinesWithGravity(merged));
+                  } else {
+                    ({ newBoard, linesCleared } = clearLines(merged));
+                  }
+                  if (linesCleared > 0) {
+                    const newScore = score + (linesCleared * 100);
+                    setScore(newScore);
+                    setLines(l => l + linesCleared);
+                    if (isMultiplayer && currentPlayerId) {
+                      socketService.sendLinesCleared(currentPlayerId, linesCleared, newBoard, newScore);
+                    }
+                  }
+                  if (isMultiplayer && currentPlayerId) {
+                    socketService.sendPiecePlaced(currentPlayerId, currentType, newBoard);
+                    socketService.sendBoardUpdate(currentPlayerId, newBoard);
+                  }
+                  return newBoard;
+                });
+                setTimeout(() => {
+                  // Handle new piece logic (solo/multiplayer)
+                  if (isMultiplayer && currentPlayerId) {
+                    // MULTIPLAYER: Request next piece from server
+                    const merged = placePiece(shape, pile, pos.x, pos.y);
+                    let newBoard;
+                    if (selectedMode === GAME_MODES.GRAVITY) {
+                      ({ newBoard } = require('../utils/gameLogic').clearLinesWithGravity(merged));
+                    } else {
+                      ({ newBoard } = clearLines(merged));
+                    }
+                    
+                    // Check for game over with current piece before requesting new one
+                    const nextShape = getTetromino(nextType || 'I').shape;
+                    const newStartX = Math.floor((COLS - nextShape[0].length) / 2);
+                    
+                    if (checkCollision(nextShape, newBoard, newStartX, 0)) {
+                      console.log('Game over detected in multiplayer!');
+                      setGameOver(true);
+                      setPendingNewPiece(false);
+                      socketService.sendGameOver(currentPlayerId);
+                    } else {
+                      // Request next piece from server - it will update our state via socket
+                      socketService.requestNextPiece(currentPlayerId);
+                    }
+                  } else {
+                    // SOLO: Use local piece generation
+                    setPieceIndex(idx => {
+                      const newIndex = idx + 1;
+                      const newType = getNextPiece(pieceSequence, newIndex);
+                      const newShape = getTetromino(newType).shape;
+                      const newStartX = Math.floor((COLS - newShape[0].length) / 2);
+                      const merged = placePiece(shape, pile, pos.x, pos.y);
+                      let newBoard;
+                      if (selectedMode === GAME_MODES.GRAVITY) {
+                        ({ newBoard } = require('../utils/gameLogic').clearLinesWithGravity(merged));
+                      } else {
+                        ({ newBoard } = clearLines(merged));
+                      }
+                      if (checkCollision(newShape, newBoard, newStartX, 0)) {
+                        setGameOver(true);
+                        setPendingNewPiece(false);
+                        return newIndex;
+                      }
+                      setCurrentType(newType);
+                      setNextType(getNextPiece(pieceSequence, newIndex + 1));
+                      setShape(newShape);
+                      setPos({ x: newStartX, y: 0 });
+                      setPendingNewPiece(false);
+                      return newIndex;
+                    });
+                  }
+                }, 0);
+                setLockDelayActive(false);
+              }
+            }, 500); // 500ms lock delay
+          }
+          return currentPos;
+        }
+      });
+    }, 500);
+    return () => {
+      clearInterval(interval);
+      if (lockDelayTimerRef.current) clearTimeout(lockDelayTimerRef.current);
+    };
+  }, [shape, pile, gameOver, playing, selectedMode, gravityDrop, multiplayerGameEnded, paused, lockDelayActive, isPieceColliding, pos.x, pos.y, currentType, nextType, score, isMultiplayer, currentPlayerId]);
+
+  // If the player moves/rotates the piece during lock delay and it is no longer colliding, cancel lock delay
+  useEffect(() => {
+    if (lockDelayActive && !isPieceColliding()) {
+      setLockDelayActive(false);
+      if (lockDelayTimerRef.current) clearTimeout(lockDelayTimerRef.current);
+    }
+  }, [pos.x, pos.y, shape, pile, lockDelayActive, isPieceColliding]);
+
   // Setup URL navigation
   useURLNavigation({
     urlRoomInfo,
@@ -178,6 +305,15 @@ const App = () => {
   });
 
   // Setup keyboard controls
+  const dropPieceToBottom = useCallback(() => {
+    let y = pos.y;
+    while (!checkCollision(shape, pile, pos.x, y + 1)) {
+      y++;
+    }
+    setPos(pos => ({ ...pos, y }));
+    setGravityDrop(false);
+  }, [pos, shape, pile]);
+
   useKeyboardControls({
     playing,
     gameOver,
@@ -193,7 +329,8 @@ const App = () => {
     setPaused,
     isMultiplayer,
     currentPlayerId,
-    socketService
+    socketService,
+    dropPieceToBottom
   });
   
   const handleValidateUsername = () => {
@@ -621,16 +758,6 @@ const App = () => {
     }
     return () => { if (gravityTimeoutRef.current) clearTimeout(gravityTimeoutRef.current); };
   }, [pos.y, selectedMode, playing]);
-
-  // Helper to drop piece instantly to the bottom
-  const dropPieceToBottom = useCallback(() => {
-    let y = pos.y;
-    while (!checkCollision(shape, pile, pos.x, y + 1)) {
-      y++;
-    }
-    setPos(pos => ({ ...pos, y }));
-    setGravityDrop(false);
-  }, [pos, shape, pile]);
 
   // Only trigger instant drop ONCE per piece
   useEffect(() => {

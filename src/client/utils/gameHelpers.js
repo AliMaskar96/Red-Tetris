@@ -129,22 +129,22 @@ export const findCurrentPlayer = (players, currentPlayerName, joinUsername, user
   
   // Try to find by currentPlayerName first
   if (currentPlayerName) {
-    foundPlayer = players.find(p => p.name === currentPlayerName);
+    foundPlayer = players.find(p => p.name === currentPlayerName) || null;
   }
   
   // If not found, try by joinUsername
   if (!foundPlayer && joinUsername) {
-    foundPlayer = players.find(p => p.name === joinUsername.trim());
+    foundPlayer = players.find(p => p.name === joinUsername.trim()) || null;
   }
   
   // If not found, try by username
   if (!foundPlayer && username) {
-    foundPlayer = players.find(p => p.name === username.trim());
+    foundPlayer = players.find(p => p.name === username.trim()) || null;
   }
   
   // If still not found, try by userList (for create room)
-  if (!foundPlayer && userList.length > 0) {
-    foundPlayer = players.find(p => userList.includes(p.name));
+  if (!foundPlayer && userList && userList.length > 0) {
+    foundPlayer = players.find(p => userList.includes(p.name)) || null;
   }
   
   return foundPlayer;
@@ -193,3 +193,5 @@ export const formatGameStats = (stats) => {
     winRate: stats.multiplayerGames > 0 ? Math.round((stats.multiplayerWins / stats.multiplayerGames) * 100) : 0
   };
 };
+
+

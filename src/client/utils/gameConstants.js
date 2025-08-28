@@ -44,4 +44,4 @@ export const GAME_TIMING = {
 };
 
 // URL hash format regex
-export const URL_HASH_REGEX = /^([A-Z0-9]+)(?:\[([^\]]+)\])?$/;
+export const URL_HASH_REGEX = /^([A-Za-z0-9]+)(?:\[([^\]]+)\])?$/;

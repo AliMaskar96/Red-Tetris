@@ -3,13 +3,16 @@
   "version": "0.0.1",
   "author": "redpelicans",
   "license": "MIT",
-  "type": "module",
   "scripts": {
     "eslint": "eslint src",
-    "client-dist": "NODE_ENV=production webpack --progress --colors",
+    "client-dist": "NODE_ENV=production webpack --progress",
     "client-dev": "webpack-dev-server --hot --host 0.0.0.0 --port 8080",
     "srv-dev": "DEBUG=tetris:* babel-watch -w src src/server/main.js",
     "srv-dist": "DEBUG=tetris:* babel src --out-dir dist",
+    "start": "node scripts/start-production.js",
+    "build": "node scripts/build-client.js",
+    "build:client": "npm run client-dist",
+    "prod": "npm start",
     "test": "jest",
     "coverage": "jest --coverage"
   },
@@ -79,6 +82,11 @@
         "branches": 50
       }
     },
-    "coverageReporters": ["text", "lcov", "html"]
-  }
+    "coverageReporters": [
+      "text",
+      "lcov",
+      "html"
+    ]
+  },
+  "type": "module"
 }

@@ -4,9 +4,14 @@ import { Server as SocketIO } from 'socket.io';
 import cors from 'cors';
 import helmet from 'helmet';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import debug from 'debug';
 import fs from 'fs';
 import registerSocketHandlers from './socketHandlers.js';
+
+// ES6 module equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const logerror = debug('tetris:error'), loginfo = debug('tetris:info');
 

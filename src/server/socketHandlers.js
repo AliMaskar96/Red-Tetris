@@ -106,7 +106,7 @@ export default function registerSocketHandlers(io) {
       
       // Generate initial batch of pieces (50 pieces instead of 1000)
       const initialBatch = generatePieceBatch(roomId, 0, 50);
-      console.log(`Generated initial batch of ${initialBatch.length} pieces for room ${roomId}:`, initialBatch.slice(0, 10), '...');
+      // console.log(`Generated initial batch of ${initialBatch.length} pieces for room ${roomId}:`, initialBatch.slice(0, 10), '...');
       
       game.startGame(roomId, initialBatch);
       // Set all players to alive, reset their scores, boards, spectrums, and pause state
@@ -129,7 +129,7 @@ export default function registerSocketHandlers(io) {
           nextPiece: nextPiece
         });
         
-        console.log(`Sent initial pieces to ${player.name}: current=${currentPiece}, next=${nextPiece}`);
+        // console.log(`Sent initial pieces to ${player.name}: current=${currentPiece}, next=${nextPiece}`);
       });
       
       // Broadcast score reset to all players
@@ -183,7 +183,7 @@ export default function registerSocketHandlers(io) {
         score: player.score || 0
       });
       
-      console.log(`📡 Broadcasting spectrum for player ${playerId} (piece placed):`, player.spectrum);
+      // console.log(`📡 Broadcasting spectrum for player ${playerId} (piece placed):`, player.spectrum);
       
       loginfo(`Player ${playerId} placed piece ${piece} in room ${roomId}`);
     });
@@ -242,7 +242,7 @@ export default function registerSocketHandlers(io) {
         score: player.score || 0
       });
       
-      console.log(`📡 Broadcasting spectrum for player ${playerId}:`, player.spectrum);
+      // console.log(`📡 Broadcasting spectrum for player ${playerId}:`, player.spectrum);
       
       // Also broadcast score update specifically
       if (newScore !== undefined) {
@@ -285,7 +285,7 @@ export default function registerSocketHandlers(io) {
         score: player.score || 0
       });
       
-      console.log(`📡 Broadcasting spectrum for player ${playerId} (board update):`, player.spectrum);
+      // console.log(`📡 Broadcasting spectrum for player ${playerId} (board update):`, player.spectrum);
       
       loginfo(`Player ${playerId} updated board in room ${roomId}`);
     });
@@ -511,7 +511,7 @@ function generateSpectrum(board) {
     }
     spectrum[col] = height;
   }
-  console.log('🎯 Generated spectrum for board:', spectrum);
+  // console.log('🎯 Generated spectrum for board:', spectrum);
   return spectrum;
 }
 

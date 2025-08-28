@@ -109,7 +109,7 @@ function generatePieceBatch(roomId, startIndex, batchSize = 50) {
   return pieces;
 }
 
-module.exports = {
+export {
   generatePieceSequence,
   createGameSequence,
   generateBag,

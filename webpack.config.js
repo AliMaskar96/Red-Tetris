@@ -1,12 +1,17 @@
-var path = require('path');
+const path = require('path');
 
 module.exports = {
-  mode: 'development',
+  mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
   entry: './src/client/index.js',
 
   output: {
     path: path.join(__dirname, 'build'),
     filename: 'bundle.js'
+  },
+
+  resolve: {
+    extensions: ['.js', '.jsx'],
+    fullySpecified: false
   },
 
   module: {

@@ -10,12 +10,12 @@ node_modules
 .env.production
 .env.test
 .env.test.local
-
+.nyc_output/
 
 ARCHITECTURE.md
 development-plan.md
-development-tasks.md
-developement-taches.md
+developement-tasks.md
+developpement-taches.md
 correction_page.md
 requirements.md
 SCRIPTS.md

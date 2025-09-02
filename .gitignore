@@ -10,3 +10,15 @@ node_modules
 .env.production
 .env.test
 .env.test.local
+
+
+ARCHITECTURE.md
+development-plan.md
+development-tasks.md
+developement-taches.md
+correction_page.md
+requirements.md
+SCRIPTS.md
+SOCKET_EVENTS.md
+subject.md
+red-tetris.pdf

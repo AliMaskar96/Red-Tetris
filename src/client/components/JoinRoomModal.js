@@ -49,7 +49,7 @@ const JoinRoomModal = ({
           fontSize: 24,
           fontWeight: 'bold'
         }}>
-          {waitingForRematch ? 'EN ATTENTE DU REMATCH' : 'REJOINDRE UNE ROOM'}
+          {waitingForRematch ? 'WAITING FOR REMATCH' : 'JOIN A ROOM'}
         </h2>
         
         {waitingForRematch ? (
@@ -63,7 +63,7 @@ const JoinRoomModal = ({
             border: '1px solid rgba(76, 175, 80, 0.3)',
             textAlign: 'center'
           }}>
-            🔄 Prêt pour le rematch ! En attente que le leader lance la nouvelle partie...
+            🔄 Ready for rematch! Waiting for the leader to start the new game...
           </div>
         ) : (
           <div style={{
@@ -76,7 +76,7 @@ const JoinRoomModal = ({
             border: '1px solid rgba(255, 152, 0, 0.3)',
             textAlign: 'center'
           }}>
-            Seul le leader de la room peut lancer le jeu
+            Only the room leader can start the game
           </div>
         )}
 
@@ -90,9 +90,9 @@ const JoinRoomModal = ({
           border: '1px solid rgba(0, 188, 212, 0.3)',
           textAlign: 'center'
         }}>
-          💡 <strong>Astuce :</strong> Vous pouvez rejoindre directement via l'URL<br/>
+          💡 <strong>Tip:</strong> You can join directly via URL<br/>
           <code style={{fontSize: 11, fontFamily: 'monospace'}}>
-            {window.location.origin}/#ROOM123[VotreNom]
+            {window.location.origin}/#ROOM123[YourName]
           </code>
         </div>
 
@@ -104,12 +104,12 @@ const JoinRoomModal = ({
               marginBottom: 8,
               color: '#FFD700',
               fontWeight: 'bold'
-            }}>ID DE LA ROOM:</label>
+            }}>ROOM ID:</label>
             <input
               type="text"
               value={joinRoomId}
               onChange={(e) => setJoinRoomId(e.target.value.toUpperCase())}
-              placeholder="Entrez l'ID de la room"
+              placeholder="Enter the room ID"
               style={{
                 width: '100%',
                 padding: 10,
@@ -133,13 +133,13 @@ const JoinRoomModal = ({
               marginBottom: 8,
               color: '#FFD700',
               fontWeight: 'bold'
-            }}>VOTRE NOM:</label>
+            }}>YOUR NAME:</label>
             <div style={{ display: 'flex', gap: 10 }}>
               <input
                 type="text"
                 value={joinUsername}
                 onChange={(e) => setJoinUsername(e.target.value)}
-                placeholder="Entrez votre nom"
+                placeholder="Enter your name"
                 style={{
                   flex: 1,
                   padding: 10,
@@ -166,7 +166,7 @@ const JoinRoomModal = ({
                   cursor: 'pointer',
                   opacity: (!joinRoomId.trim() || !joinUsername.trim()) ? 0.5 : 1
                 }}
-              >REJOINDRE</button>
+              >JOIN</button>
             </div>
           </div>
         )}
@@ -197,7 +197,7 @@ const JoinRoomModal = ({
             border: '1px solid rgba(255, 152, 0, 0.3)',
             textAlign: 'center'
           }}>
-            🔄 Tentative de rejoindre la room...
+            🔄 Attempting to join room...
           </div>
         )}
 
@@ -213,12 +213,12 @@ const JoinRoomModal = ({
             border: '1px solid rgba(76, 175, 80, 0.3)',
             textAlign: 'center'
           }}>
-            ✅ Connecté à la room <strong>{currentRoomId}</strong>
+            ✅ Connected to room <strong>{currentRoomId}</strong>
             
             {/* Show players in room */}
             <div style={{ marginTop: 15 }}>
               <div style={{fontSize: 14, fontWeight: 'bold', marginBottom: 8}}>
-                Joueurs connectés ({roomPlayers.length}) :
+                Connected players ({roomPlayers.length}):
               </div>
               <div style={{
                 backgroundColor: '#2a2a2a',
@@ -233,7 +233,7 @@ const JoinRoomModal = ({
                     fontSize: 14,
                     fontStyle: 'italic'
                   }}>
-                    Chargement des joueurs...
+                    Loading players...
                   </div>
                 ) : (
                   roomPlayers.map((player, index) => (
@@ -285,7 +285,7 @@ const JoinRoomModal = ({
             cursor: 'pointer',
             fontWeight: 'bold',
           }}
-          title="Fermer"
+          title="Close"
         >×</button>
       </div>
     </div>

@@ -14,6 +14,11 @@ class Game {
     // New: Room-based piece generation
     this.roomId = null; // Will be set when starting game
     this.initialBatchSize = 50; // Initial pieces to pre-generate
+    
+    // 🕰️ SYNCHRONIZATION: Server-controlled timing
+    this.gameLoop = null; // Game loop interval
+    this.gameSpeed = 500; // ms between gravity drops
+    this.tickCount = 0; // Game ticks counter
   }
 
   addPlayer(player) {
@@ -123,6 +128,50 @@ class Game {
     }
     this.status = 'ended';
     this.winner = playerId;
+    this.stopGameLoop(); // Stop the game loop when game ends
+  }
+
+  // 🕰️ SYNCHRONIZATION: Start server-controlled game loop
+  startGameLoop(io, roomId) {
+    if (this.gameLoop) {
+      clearInterval(this.gameLoop);
+    }
+    
+    this.tickCount = 0;
+    this.gameLoop = setInterval(() => {
+      if (this.status !== 'playing') {
+        this.stopGameLoop();
+        return;
+      }
+      
+      this.tickCount++;
+      
+      // Broadcast gravity tick to all players
+      io.to(roomId).emit('gravity-tick', { 
+        tickCount: this.tickCount,
+        gameSpeed: this.gameSpeed 
+      });
+      
+      console.log(`🕰️ Game ${this.id} tick ${this.tickCount} sent to room ${roomId}`);
+    }, this.gameSpeed);
+    
+    console.log(`🕰️ Started game loop for game ${this.id} in room ${roomId} with ${this.gameSpeed}ms intervals`);
+  }
+
+  // 🕰️ SYNCHRONIZATION: Stop server-controlled game loop
+  stopGameLoop() {
+    if (this.gameLoop) {
+      clearInterval(this.gameLoop);
+      this.gameLoop = null;
+      console.log(`🕰️ Stopped game loop for game ${this.id}`);
+    }
+  }
+
+  // 🕰️ SYNCHRONIZATION: Update game speed (for increasing difficulty)
+  setGameSpeed(newSpeed) {
+    this.gameSpeed = newSpeed;
+    // The game loop will need to be restarted externally with new speed
+    // This avoids circular dependency issues
   }
 
   getAlivePlayers() {

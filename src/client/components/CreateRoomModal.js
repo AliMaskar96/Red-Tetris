@@ -41,7 +41,7 @@ const CreateRoomModal = ({
         position: 'relative'
       }}>
         <div style={{fontSize: 30, fontWeight: 900, marginBottom: 12, letterSpacing: 2}}>
-          Créer une Room
+          Create a Room
         </div>
         
         <div style={{
@@ -53,11 +53,11 @@ const CreateRoomModal = ({
           borderRadius: 8,
           border: '1px solid rgba(76, 175, 80, 0.3)'
         }}>
-          👑 Vous serez le leader et pourrez lancer le jeu pour tous les joueurs
+          👑 You will be the leader and can start the game for all players
         </div>
         
         <div style={{fontSize: 18, color: '#fff', marginBottom: 10}}>
-          ID de la Room : <span style={{color: '#FFD700', fontWeight: 'bold'}}>{createRoomId}</span>
+          Room ID: <span style={{color: '#FFD700', fontWeight: 'bold'}}>{createRoomId}</span>
         </div>
         
         {joinError && (
@@ -71,7 +71,7 @@ const CreateRoomModal = ({
           <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 18}}>
             <input
               type="text"
-              placeholder="Entrez votre nom"
+              placeholder="Enter your name"
               value={username}
               onChange={e => setUsername(e.target.value)}
               style={{
@@ -100,7 +100,7 @@ const CreateRoomModal = ({
                 cursor: 'pointer',
                 whiteSpace: 'nowrap'
               }}
-            >Valider</button>
+            >Validate</button>
           </div>
         )}
         
@@ -116,9 +116,9 @@ const CreateRoomModal = ({
             border: '1px solid rgba(76, 175, 80, 0.3)',
             textAlign: 'center'
           }}>
-            ✅ Room créée avec succès ! En attente d'autres joueurs...
+            ✅ Room created successfully! Waiting for other players...
             <div style={{marginTop: 12, fontSize: 14, color: '#fff'}}>
-              <strong>Lien à partager :</strong>
+              <strong>Link to share:</strong>
               <div style={{
                 marginTop: 8,
                 padding: '8px 12px',
@@ -136,7 +136,7 @@ const CreateRoomModal = ({
                 navigator.clipboard.writeText(link);
                 // Show a temporary feedback
                 const elem = document.createElement('div');
-                elem.textContent = 'Lien copié !';
+                elem.textContent = 'Link copied!';
                 elem.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#4CAF50;color:white;padding:12px 24px;border-radius:8px;z-index:10000;font-weight:bold;';
                 document.body.appendChild(elem);
                 setTimeout(() => document.body.removeChild(elem), 2000);
@@ -144,7 +144,7 @@ const CreateRoomModal = ({
                 {`${window.location.origin}/#${currentRoomId}[PLAYER_NAME]`}
               </div>
               <div style={{fontSize: 12, color: '#ccc', marginTop: 4}}>
-                Cliquer pour copier
+                Click to copy
               </div>
             </div>
           </div>
@@ -160,7 +160,7 @@ const CreateRoomModal = ({
             border: '1px solid #333'
           }}>
             <div style={{fontSize: 16, color: '#FFD700', marginBottom: 8, fontWeight: 'bold'}}>
-              Joueurs connectés ({roomPlayers.length}) :
+              Connected players ({roomPlayers.length}):
             </div>
             <ul style={{listStyle: 'none', padding: 0, margin: 0, fontSize: 14}}>
               {roomPlayers.map((player, index) => (
@@ -210,7 +210,7 @@ const CreateRoomModal = ({
             cursor: 'pointer',
             fontWeight: 'bold',
           }}
-          title="Fermer"
+          title="Close"
         >×</button>
       </div>
     </div>

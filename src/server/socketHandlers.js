@@ -150,7 +150,10 @@ export default function registerSocketHandlers(io) {
         });
       });
       
-      loginfo(`Game ${game.id} started in room ${roomId} with batch-generated pieces, all scores and boards reset`);
+      // 🕰️ SYNCHRONIZATION: Start server-controlled game loop
+      game.startGameLoop(io, roomId);
+      
+      loginfo(`Game ${game.id} started in room ${roomId} with batch-generated pieces, all scores and boards reset, and synchronized game loop`);
     });
 
     socket.on('player-move', ({ playerId, move }) => {
@@ -190,12 +193,22 @@ export default function registerSocketHandlers(io) {
 
     // NEW EVENT: Request next piece (sent by clients when they need a new piece)
     socket.on('request-next-piece', ({ playerId }) => {
+      console.log(`🔄 Server received request-next-piece from player ${playerId}`);
       const roomId = socket.data.roomId;
-      if (!roomId) return;
+      if (!roomId) {
+        console.log(`❌ No roomId for player ${playerId}`);
+        return;
+      }
       const room = rooms.get(roomId);
-      if (!room) return;
+      if (!room) {
+        console.log(`❌ Room ${roomId} not found`);
+        return;
+      }
       const game = room.game;
-      if (!game) return;
+      if (!game) {
+        console.log(`❌ Game not found in room ${roomId}`);
+        return;
+      }
       
       try {
         // Distribute next piece for this specific player
@@ -206,12 +219,17 @@ export default function registerSocketHandlers(io) {
           // Send the piece specifically to this player
           const player = players.get(playerId);
           if (player) {
+            console.log(`✅ Sending next-piece to ${player.name}: currentPiece=${nextPiece}, nextPiece=${followingPiece}`);
             io.to(player.socketId).emit('next-piece', { 
               currentPiece: nextPiece,
               nextPiece: followingPiece
             });
             loginfo(`Sent piece ${nextPiece} to player ${playerId} (${player.name}) in room ${roomId}`);
+          } else {
+            console.log(`❌ Player ${playerId} not found in players map`);
           }
+        } else {
+          console.log(`❌ No next piece available for player ${playerId}`);
         }
       } catch (error) {
         console.error('Error distributing next piece:', error);
@@ -415,6 +433,10 @@ export default function registerSocketHandlers(io) {
       
       // If room is empty, clean up
       if (room.isEmpty()) {
+        // 🕰️ SYNCHRONIZATION: Stop game loop when room is empty
+        if (room.game) {
+          room.game.stopGameLoop();
+        }
         games.delete(room.game.id);
         rooms.delete(roomId);
         loginfo(`Room ${roomId} deleted - all players left`);
@@ -488,6 +510,10 @@ export default function registerSocketHandlers(io) {
       }
       // If room is empty, clean up
       if (room.isEmpty()) {
+        // 🕰️ SYNCHRONIZATION: Stop game loop when room is empty
+        if (room.game) {
+          room.game.stopGameLoop();
+        }
         games.delete(room.game.id);
         rooms.delete(roomId);
       }
@@ -559,6 +585,9 @@ function checkGameEndConditions(room, io, roomId) {
     
     console.log(`Game ended - all eliminated. Winner by highest score: ${winner.name} (${winner.score})`);
     
+    // 🕰️ SYNCHRONIZATION: Stop game loop when game ends
+    game.stopGameLoop();
+    
     io.to(roomId).emit('game-end', { 
       winnerId: winner.id, 
       winnerName: winner.name,
@@ -576,6 +605,9 @@ function checkGameEndConditions(room, io, roomId) {
     game.status = 'ended';
     
     console.log(`Game ended with winner: ${winner.name} (last player alive)`);
+    
+    // 🕰️ SYNCHRONIZATION: Stop game loop when game ends
+    game.stopGameLoop();
     
     io.to(roomId).emit('game-end', { 
       winnerId: winner.id, 

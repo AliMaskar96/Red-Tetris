@@ -139,7 +139,7 @@ const GameHUD = ({
                 marginBottom: 6
               }}
             >
-              {paused ? '▶ REPRENDRE' : '⏸ PAUSE'}
+              {paused ? '▶ RESUME' : '⏸ PAUSE'}
             </button>
             
             <button
@@ -158,7 +158,7 @@ const GameHUD = ({
                 boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
               }}
             >
-              🚪 QUITTER
+              🚪 QUIT
             </button>
           </>
         )}

@@ -148,8 +148,8 @@ export function getBoardWithPieceAndShadow(piece, board, posX, posY) {
           const boardY = shadowPos.y + y;
           const boardX = shadowPos.x + x;
           if (boardY >= 0 && boardY < board.length && boardX >= 0 && boardX < board[0].length) {
-            if (boardCopy[boardY][boardX] === 0) { // Ne dessiner que sur les cases vides
-              boardCopy[boardY][boardX] = -1; // Valeur spéciale pour le spectre
+            if (boardCopy[boardY][boardX] === 0) { // Only draw on empty cells
+              boardCopy[boardY][boardX] = -1; // Special value for spectrum
             }
           }
         }

@@ -123,7 +123,7 @@ describe('gameLogic pure functions', () => {
     
     const shadowPos = calculateShadowPosition(piece, board, 0, 0);
     expect(shadowPos.x).toBe(0);
-    expect(shadowPos.y).toBe(16); // Should land above the block
+    expect(shadowPos.y).toBe(17); // Should land above the block (piece[0][0] at [17][0], piece[1][1] at [18][1])
   });
 
   test('calculateShadowPosition should handle piece at very bottom', () => {
@@ -252,7 +252,7 @@ describe('gameLogic pure functions', () => {
 
   test('checkCollision should handle complex piece shapes', () => {
     const board = createEmptyBoard();
-    board[1][1] = 1; // Place obstacle
+    board[2][1] = 1; // Place obstacle where L-piece bottom-right would be
     
     const lPiece = [
       [1, 0],
@@ -260,8 +260,8 @@ describe('gameLogic pure functions', () => {
       [1, 1]
     ];
     
-    expect(checkCollision(lPiece, board, 0, 0)).toBe(true); // Should collide with obstacle
-    expect(checkCollision(lPiece, board, 2, 0)).toBe(false); // Should fit
+    expect(checkCollision(lPiece, board, 0, 0)).toBe(true); // Should collide with obstacle at [2][1]
+    expect(checkCollision(lPiece, board, 2, 0)).toBe(false); // Should fit when moved right
   });
 
   test('movePiece should handle edge positions', () => {
@@ -276,9 +276,9 @@ describe('gameLogic pure functions', () => {
 
   test('rotatePiece should handle collision during rotation', () => {
     const board = createEmptyBoard();
-    // Fill right side to prevent rotation
+    // Fill positions where rotated I-piece would be placed
     for (let y = 0; y < 4; y++) {
-      board[y][9] = 1;
+      board[y][8] = 1; // Block the column where rotated piece would go
     }
     
     const iPiece = [
@@ -288,7 +288,7 @@ describe('gameLogic pure functions', () => {
       [0, 0, 0, 0]
     ];
     
-    // Piece at right edge should not rotate due to collision
+    // Piece at position (6,0) should not rotate due to collision with obstacles at column 8
     const result = rotatePiece(iPiece, board, 6, 0);
     expect(result).toEqual(iPiece); // Should return original piece
   });
@@ -322,8 +322,8 @@ describe('gameLogic pure functions', () => {
     
     const { newBoard, linesCleared } = clearLines(board);
     expect(linesCleared).toBe(2);
-    expect(newBoard[18][0]).toBe(1); // Partial line should move down
-    expect(newBoard[19][0]).toBe(0); // Should be empty after clearing
+    expect(newBoard[19][0]).toBe(1); // Partial line should move to bottom
+    expect(newBoard[18][0]).toBe(0); // Should be empty (new row added at top)
   });
 
   test('generateSpectrum should handle empty board correctly', () => {

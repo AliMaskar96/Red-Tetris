@@ -31,7 +31,7 @@ const GameControls = ({
           boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
         }}
       >
-        {paused ? '▶ REPRENDRE' : '⏸ PAUSE'}
+        {paused ? '▶ RESUME' : '⏸ PAUSE'}
       </button>
       
       <button
@@ -50,7 +50,7 @@ const GameControls = ({
           boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
         }}
       >
-        🚪 QUITTER
+        🚪 QUIT
       </button>
     </div>
   );

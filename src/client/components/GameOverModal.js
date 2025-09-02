@@ -40,7 +40,7 @@ const GameOverModal = ({
         }}>
           {isMultiplayer ? '💀 ELIMINATED!' : 'Game Over'}
           <div style={{fontSize: 24, color: '#fff', marginTop: 16}}>
-            Score : {score}
+            Score: {score}
           </div>
           {isMultiplayer ? (
             <div style={{display: 'flex', gap: 20, marginTop: 32, justifyContent: 'center'}}>
@@ -55,7 +55,7 @@ const GameOverModal = ({
                 cursor: 'pointer', 
                 boxShadow: '0 4px 16px #0008'
               }}>
-                🔄 REJOUER
+                🔄 PLAY AGAIN
               </button>
               
               <button onClick={onGoToLobby} style={{
@@ -86,7 +86,7 @@ const GameOverModal = ({
                 fontWeight: 'bold', 
                 cursor: 'pointer', 
                 boxShadow: '0 2px 8px #0006'
-              }}>Rejouer</button>
+              }}>Play Again</button>
               
               <button onClick={onGoToLobby} style={{
                 marginTop: 18, 
@@ -107,7 +107,7 @@ const GameOverModal = ({
     );
   }
 
-  // Victory/Defeat Overlay - Fin de partie multijoueur
+  // Victory/Defeat Overlay - End of multiplayer game
   if (multiplayerGameEnded && gameWinner) {
     return (
       <div style={{
@@ -137,10 +137,10 @@ const GameOverModal = ({
           {gameWinner.id === currentPlayerId ? '🏆 WINNER!' : '💀 GAME OVER'}
           <div style={{fontSize: 24, color: '#fff', marginTop: 16}}>
             {gameWinner.id === currentPlayerId 
-              ? 'Félicitations! Tu as gagné!' 
-              : `${gameWinner.name} a gagné!`}
+              ? 'Congratulations! You won!' 
+              : `${gameWinner.name} won!`}
           </div>
-          <div style={{fontSize: 18, color: '#ccc', marginTop: 12}}>Score final : {score}</div>
+          <div style={{fontSize: 18, color: '#ccc', marginTop: 12}}>Final score: {score}</div>
           
           <div style={{display: 'flex', gap: 20, marginTop: 32, justifyContent: 'center'}}>
             <button onClick={onRematch} style={{
@@ -154,7 +154,7 @@ const GameOverModal = ({
               cursor: 'pointer', 
               boxShadow: '0 4px 16px #0008'
             }}>
-              🔄 REJOUER
+              🔄 PLAY AGAIN
             </button>
             
             <button onClick={onGoToLobby} style={{

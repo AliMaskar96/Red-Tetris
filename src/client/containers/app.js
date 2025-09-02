@@ -486,7 +486,7 @@ const App = () => {
     });
 
     socketService.onNextPiece(({ currentPiece, nextPiece }) => {
-      console.log('Next piece from server:', { currentPiece, nextPiece });
+      console.log('🎯 Next piece from server:', { currentPiece, nextPiece });
       
       // In multiplayer, always use pieces from server
       if (isMultiplayer) {
@@ -494,12 +494,14 @@ const App = () => {
           setCurrentType(currentPiece);
           const newShape = getTetromino(currentPiece).shape;
           setShape(newShape);
-          setPos({ x: Math.floor((COLS - newShape[0].length) / 2), y: 0 });
+          const newStartX = Math.floor((COLS - newShape[0].length) / 2);
+          setPos({ x: newStartX, y: 0 });
         }
         if (nextPiece) {
           setNextType(nextPiece);
         }
         setPendingNewPiece(false);
+        console.log(`🎯 Piece ready: ${currentPiece} at top`);
       } else {
         // Solo play - use old logic or ignore server pieces
         if (currentPiece) {
@@ -513,11 +515,11 @@ const App = () => {
       console.log('Current player ID:', currentPlayerId);
       setEliminatedPlayers(prev => [...prev, { id: playerId, name: playerName }]);
       
-      // Si c'est nous qui sommes éliminés
+      // If we are eliminated
       if (playerId === currentPlayerId) {
         console.log('WE ARE ELIMINATED!');
         setGameOver(true);
-        // Ne pas mettre playing à false ici pour permettre l'affichage de l'overlay
+        // Don't set playing to false here to allow overlay display
       }
     });
 
@@ -546,10 +548,10 @@ const App = () => {
         console.log('multiplayerGameEnded should be: true');
       }, 100);
       
-      // Si c'est nous qui avons gagné
+      // If we won
       if (winnerId === currentPlayerId) {
         console.log('WE WON!');
-        setGameOver(false); // Pas de game over pour le gagnant
+        setGameOver(false); // No game over for the winner
       } else {
         console.log('WE LOST OR SOMEONE ELSE WON');
       }
@@ -641,11 +643,11 @@ const App = () => {
   // Handle multiplayer room joining
   const handleJoinRoom = () => {
     if (!joinRoomId.trim()) {
-      setJoinError('Veuillez entrer un ID de room');
+      setJoinError('Please enter a room ID');
       return;
     }
     if (!joinUsername.trim()) {
-      setJoinError('Veuillez entrer votre nom');
+      setJoinError('Please enter your name');
       return;
     }
     
@@ -785,8 +787,11 @@ const App = () => {
     return () => { if (gravityTimeoutRef.current) clearTimeout(gravityTimeoutRef.current); };
   }, [pos.y, selectedMode, playing]);
 
+  // 🕰️ SYNCHRONIZATION: Use client timing for solo, server timing for multiplayer
   useEffect(() => {
-    if (!playing || gameOver || multiplayerGameEnded || paused) return;
+    // Only use client-side timing for solo games
+    if (!playing || gameOver || multiplayerGameEnded || paused || isMultiplayer) return;
+    
     const interval = setInterval(() => {
       setPos(pos => {
         if (!checkCollision(shape, pile, pos.x, pos.y + 1)) {
@@ -879,9 +884,46 @@ const App = () => {
           return pos;
         }
       });
-    }, 500);
+    }, isMultiplayer ? 500 : 500); // Same timing for now, but server sync will keep them aligned
     return () => clearInterval(interval);
-  }, [shape, pile, gameOver, playing, pieceSequence, selectedMode, multiplayerGameEnded, isMultiplayer, currentPlayerId, currentType, nextType, paused]);
+  }, [shape, pile, gameOver, playing, pieceSequence, selectedMode, multiplayerGameEnded, isMultiplayer, currentPlayerId, currentType, nextType, paused, syncCounter]);
+
+  // 🕰️ SYNCHRONIZATION: Simple sync counter for multiplayer
+  const [syncCounter, setSyncCounter] = useState(0);
+
+  // 🕰️ SYNCHRONIZATION: Use server ticks to trigger gravity in multiplayer
+  useEffect(() => {
+    if (!isMultiplayer || !socketService.socket) return;
+
+    const handleGravityTick = ({ tickCount, gameSpeed }) => {
+      console.log(`🕰️ Server gravity tick ${tickCount}`);
+      
+      // Only process if game is active
+      if (!playing || gameOver || multiplayerGameEnded || paused || pendingNewPiece) {
+        return;
+      }
+
+      // Trigger gravity drop
+      setPos(pos => {
+        if (!checkCollision(shape, pile, pos.x, pos.y + 1)) {
+          return { ...pos, y: pos.y + 1 };
+        } else {
+          // Piece hits bottom - let the normal interval handle piece placement
+          return pos;
+        }
+      });
+    };
+
+    console.log(`🕰️ Setting up server-controlled gravity for multiplayer`);
+    socketService.socket.on('gravity-tick', handleGravityTick);
+
+    return () => {
+      console.log(`🕰️ Cleaning up server gravity listener`);
+      if (socketService.socket) {
+        socketService.socket.off('gravity-tick', handleGravityTick);
+      }
+    };
+  }, [isMultiplayer, socketService.socket, playing, gameOver, multiplayerGameEnded, paused, pendingNewPiece, shape, pile]);
 
   // Update shape if currentType changes (e.g., after reset)
   useEffect(() => {
@@ -1172,7 +1214,7 @@ const App = () => {
                 </div>
                 
                 {!playing ? (
-                  /* Message pour le lobby */
+                  /* Message for lobby */
                   <div style={{
                     color: '#999',
                     fontSize: 16,
@@ -1181,12 +1223,12 @@ const App = () => {
                   }}>
                     🎮
                     <br /><br />
-                    En attente d'une partie...
+                    Waiting for a game...
                     <br /><br />
-                    Créez ou rejoignez une room pour jouer en multijoueur !
+                    Create or join a room to play multiplayer!
                   </div>
                 ) : !isMultiplayer ? (
-                  /* Message pour le mode solo */
+                  /* Message for solo mode */
                   <div style={{
                     color: '#666',
                     fontSize: 16,
@@ -1195,14 +1237,14 @@ const App = () => {
                   }}>
                     🎯
                     <br /><br />
-                    Mode Solo
+                    Solo Mode
                     <br /><br />
-                    Pas d'adversaires
+                    No opponents
                     <br />
-                    Battez votre record !
+                    Beat your record!
                   </div>
                 ) : (
-                  /* Message pour multijoueur sans opponents */
+                  /* Message for multiplayer without opponents */
                   <div style={{
                     color: '#888',
                     fontSize: 16,
@@ -1211,9 +1253,9 @@ const App = () => {
                   }}>
                     👥
                     <br /><br />
-                    Multijoueur
+                    Multiplayer
                     <br /><br />
-                    En attente d'autres joueurs...
+                    Waiting for other players...
                   </div>
                 )}
               </div>
@@ -1234,7 +1276,7 @@ const App = () => {
               fontWeight: 'bold',
               zIndex: 1500
             }}>
-              🔄 Rejoindre la room via URL...
+              🔄 Joining room via URL...
             </div>
           )}
           
@@ -1253,7 +1295,7 @@ const App = () => {
               animation: 'fadeOut 3s forwards'
             }}
             onAnimationEnd={() => setUrlJoinStatus('')}>
-              ✅ Room rejointe avec succès !
+              ✅ Room joined successfully!
             </div>
           )}
           

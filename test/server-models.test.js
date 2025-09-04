@@ -26,9 +26,7 @@ describe('Server Models', () => {
       expect(player.board[0]).to.be.an('array').with.lengthOf(10);
       expect(player.spectrum).to.be.an('array').with.lengthOf(10);
       expect(player.score).to.equal(0);
-      expect(player.pieceIndex).to.equal(0);
-      expect(player.currentPiece).to.be.null;
-      expect(player.nextPiece).to.be.null;
+      // Removed piece-related properties - now handled client-side
     });
 
     it('should create a player with optional properties', () => {
@@ -151,112 +149,19 @@ describe('Server Models', () => {
       expect(player.score).to.equal(0);
     });
 
-    it('should manage piece index', () => {
-      const player = new Player({
-        id: 'player1',
-        name: 'Alice',
-        socketId: 'socket123'
-      });
-      
-      player.setPieceIndex(5);
-      expect(player.pieceIndex).to.equal(5);
-    });
+    // Removed: Piece index management tests - now handled client-side
 
-    it('should set current and next pieces', () => {
-      const player = new Player({
-        id: 'player1',
-        name: 'Alice',
-        socketId: 'socket123'
-      });
-      
-      player.setCurrentPiece('I');
-      expect(player.currentPiece).to.equal('I');
-      
-      player.setNextPiece('O');
-      expect(player.nextPiece).to.equal('O');
-    });
+    // Removed: Set current and next pieces tests - now handled client-side
 
-    it('should advance pieces correctly', () => {
-      const player = new Player({
-        id: 'player1',
-        name: 'Alice',
-        socketId: 'socket123'
-      });
-      
-      const pieceSequence = ['I', 'O', 'T', 'S', 'Z'];
-      player.pieceIndex = 0;
-      
-      const piece1 = player.advancePiece(pieceSequence);
-      expect(piece1).to.equal('I');
-      expect(player.currentPiece).to.equal('I');
-      expect(player.nextPiece).to.equal('O');
-      expect(player.pieceIndex).to.equal(1);
-      
-      const piece2 = player.advancePiece(pieceSequence);
-      expect(piece2).to.equal('O');
-      expect(player.currentPiece).to.equal('O');
-      expect(player.nextPiece).to.equal('T');
-      expect(player.pieceIndex).to.equal(2);
-    });
+    // Removed: Advance pieces tests - now handled client-side
 
-    it('should return null when advancing past sequence end', () => {
-      const player = new Player({
-        id: 'player1',
-        name: 'Alice',
-        socketId: 'socket123'
-      });
-      
-      const pieceSequence = ['I', 'O'];
-      player.pieceIndex = 2; // Past the end
-      
-      const piece = player.advancePiece(pieceSequence);
-      expect(piece).to.be.null;
-    });
+    // Removed: Advance past sequence end tests - now handled client-side
 
-    it('should initialize pieces correctly', () => {
-      const player = new Player({
-        id: 'player1',
-        name: 'Alice',
-        socketId: 'socket123'
-      });
-      
-      const pieceSequence = ['I', 'O', 'T', 'S'];
-      player.initializePieces(pieceSequence);
-      
-      expect(player.currentPiece).to.equal('I');
-      expect(player.nextPiece).to.equal('O');
-      expect(player.pieceIndex).to.equal(1);
-    });
+    // Removed: Initialize pieces tests - now handled client-side
 
-    it('should handle empty piece sequence initialization', () => {
-      const player = new Player({
-        id: 'player1',
-        name: 'Alice',
-        socketId: 'socket123'
-      });
-      
-      const pieceSequence = [];
-      player.initializePieces(pieceSequence);
-      
-      expect(player.currentPiece).to.be.undefined;
-      expect(player.nextPiece).to.be.null;
-      expect(player.pieceIndex).to.equal(1);
-    });
+    // Removed: Empty sequence initialization tests - now handled client-side
 
-    it('should handle single piece sequence initialization', () => {
-      const player = new Player({
-        id: 'player1',
-        name: 'Alice',
-        socketId: 'socket123'
-      });
-      
-      const pieceSequence = ['I'];
-      player.initializePieces(pieceSequence);
-      
-      expect(player.currentPiece).to.equal('I');
-      expect(player.nextPiece).to.be.null;
-      expect(player.pieceIndex).to.equal(1);
-    });
+    // Removed: Single piece sequence initialization tests - now handled client-side
   });
 
   describe('Game Model', () => {
@@ -266,11 +171,9 @@ describe('Server Models', () => {
       expect(game.id).to.equal('game123');
       expect(game.players).to.be.an('array').with.lengthOf(0);
       expect(game.status).to.equal('waiting');
-      expect(game.pieceSequence).to.be.an('array').with.lengthOf(0);
-      expect(game.currentPieceIndex).to.equal(0);
       expect(game.winner).to.be.null;
       expect(game.roomId).to.be.null;
-      expect(game.initialBatchSize).to.equal(50);
+      // Removed piece sequence properties - now handled client-side
     });
 
     it('should create a game with optional properties', () => {
@@ -359,25 +262,24 @@ describe('Server Models', () => {
       expect(game.status).to.equal('playing');
       expect(game.roomId).to.equal('room123');
       expect(game.winner).to.be.null;
-      expect(game.pieceSequence).to.be.an('array').with.lengthOf(50); // Our implementation uses initialBatchSize = 50
+      expect(game.sharedSeed).to.be.a('number'); // Now uses shared seed instead of piece sequence
       
       // Restore require
       require = originalRequire;
     });
 
-    it('should start game with provided initial pieces', () => {
+    it('should start game with shared seed', () => {
       const game = new Game({ id: 'game123' });
       const player1 = new Player({ id: 'player1', name: 'Alice', socketId: 'socket1' });
       game.addPlayer(player1);
       
-      const initialPieces = ['S', 'Z', 'J', 'L'];
-      game.startGame('room123', initialPieces);
+      const sharedSeed = 12345;
+      game.startGame('room123', sharedSeed);
       
       expect(game.status).to.equal('playing');
       expect(game.roomId).to.equal('room123');
-      expect(game.pieceSequence).to.deep.equal(initialPieces);
-      expect(player1.currentPiece).to.equal('S');
-      expect(player1.nextPiece).to.equal('Z');
+      expect(game.sharedSeed).to.equal(sharedSeed);
+      // Removed player piece expectations - now handled client-side
     });
 
     it('should get alive players', () => {
@@ -416,25 +318,9 @@ describe('Server Models', () => {
       expect(() => game.setWinner('nonexistent')).to.throw('Winner must be a valid player in the game');
     });
 
-    it('should get current piece for player', () => {
-      const game = new Game({ id: 'game123' });
-      const player1 = new Player({ id: 'player1', name: 'Alice', socketId: 'socket1' });
-      player1.setCurrentPiece('I');
-      game.addPlayer(player1);
-      
-      expect(game.getCurrentPieceForPlayer('player1')).to.equal('I');
-      expect(game.getCurrentPieceForPlayer('nonexistent')).to.be.null;
-    });
+    // Removed: Get current piece for player tests - now handled client-side
 
-    it('should get next piece for player', () => {
-      const game = new Game({ id: 'game123' });
-      const player1 = new Player({ id: 'player1', name: 'Alice', socketId: 'socket1' });
-      player1.setNextPiece('O');
-      game.addPlayer(player1);
-      
-      expect(game.getNextPieceForPlayer('player1')).to.equal('O');
-      expect(game.getNextPieceForPlayer('nonexistent')).to.be.null;
-    });
+    // Removed: Get next piece for player tests - now handled client-side
 
     it('should handle legacy getCurrentPiece method', () => {
       const game = new Game({ id: 'game123' });

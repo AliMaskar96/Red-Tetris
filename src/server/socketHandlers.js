@@ -104,11 +104,11 @@ export default function registerSocketHandlers(io) {
       const game = room.game;
       if (!game) return;
       
-      // Generate initial batch of pieces (50 pieces instead of 1000)
-      const initialBatch = generatePieceBatch(roomId, 0, 50);
-      // console.log(`Generated initial batch of ${initialBatch.length} pieces for room ${roomId}:`, initialBatch.slice(0, 10), '...');
+      // Generate shared seed for deterministic piece sequence across all clients
+      const sharedSeed = Math.floor(Math.random() * 1000000);
+      console.log(`🎲 Generated shared seed ${sharedSeed} for room ${roomId}`);
       
-      game.startGame(roomId, initialBatch);
+      game.startGame(roomId, sharedSeed);
       // Set all players to alive, reset their scores, boards, spectrums, and pause state
       room.players.forEach(p => {
         p.setAlive(true);
@@ -118,18 +118,10 @@ export default function registerSocketHandlers(io) {
         p.spectrum = Array(10).fill(0); // Reset spectrum to empty
       });
       
-      // Send individual pieces to each player
-      room.players.forEach(player => {
-        const currentPiece = player.currentPiece;
-        const nextPiece = player.nextPiece;
-        
-        io.to(player.socketId).emit('game-started', { 
-          gameId: game.id, 
-          currentPiece: currentPiece,
-          nextPiece: nextPiece
-        });
-        
-        // console.log(`Sent initial pieces to ${player.name}: current=${currentPiece}, next=${nextPiece}`);
+      // Send shared seed to all players for synchronized piece generation
+      io.to(roomId).emit('game-started', { 
+        gameId: game.id, 
+        sharedSeed: sharedSeed
       });
       
       // Broadcast score reset to all players
@@ -150,10 +142,7 @@ export default function registerSocketHandlers(io) {
         });
       });
       
-      // 🕰️ SYNCHRONIZATION: Start server-controlled game loop
-      game.startGameLoop(io, roomId);
-      
-      loginfo(`Game ${game.id} started in room ${roomId} with batch-generated pieces, all scores and boards reset, and synchronized game loop`);
+      loginfo(`Game ${game.id} started in room ${roomId} with shared seed ${sharedSeed} for client-side piece generation`);
     });
 
     socket.on('player-move', ({ playerId, move }) => {
@@ -191,50 +180,7 @@ export default function registerSocketHandlers(io) {
       loginfo(`Player ${playerId} placed piece ${piece} in room ${roomId}`);
     });
 
-    // NEW EVENT: Request next piece (sent by clients when they need a new piece)
-    socket.on('request-next-piece', ({ playerId }) => {
-      console.log(`🔄 Server received request-next-piece from player ${playerId}`);
-      const roomId = socket.data.roomId;
-      if (!roomId) {
-        console.log(`❌ No roomId for player ${playerId}`);
-        return;
-      }
-      const room = rooms.get(roomId);
-      if (!room) {
-        console.log(`❌ Room ${roomId} not found`);
-        return;
-      }
-      const game = room.game;
-      if (!game) {
-        console.log(`❌ Game not found in room ${roomId}`);
-        return;
-      }
-      
-      try {
-        // Distribute next piece for this specific player
-        const nextPiece = game.distributeNextPieceForPlayer(playerId);
-        const followingPiece = game.getNextPieceForPlayer(playerId);
-        
-        if (nextPiece) {
-          // Send the piece specifically to this player
-          const player = players.get(playerId);
-          if (player) {
-            console.log(`✅ Sending next-piece to ${player.name}: currentPiece=${nextPiece}, nextPiece=${followingPiece}`);
-            io.to(player.socketId).emit('next-piece', { 
-              currentPiece: nextPiece,
-              nextPiece: followingPiece
-            });
-            loginfo(`Sent piece ${nextPiece} to player ${playerId} (${player.name}) in room ${roomId}`);
-          } else {
-            console.log(`❌ Player ${playerId} not found in players map`);
-          }
-        } else {
-          console.log(`❌ No next piece available for player ${playerId}`);
-        }
-      } catch (error) {
-        console.error('Error distributing next piece:', error);
-      }
-    });
+    // 🕰️ REMOVED: Request next piece - clients now handle piece generation locally
 
     socket.on('lines-cleared', ({ playerId, linesCleared, newBoard, newScore }) => {
       // Update player's board and spectrum
@@ -433,10 +379,7 @@ export default function registerSocketHandlers(io) {
       
       // If room is empty, clean up
       if (room.isEmpty()) {
-        // 🕰️ SYNCHRONIZATION: Stop game loop when room is empty
-        if (room.game) {
-          room.game.stopGameLoop();
-        }
+        // Clean up game resources
         games.delete(room.game.id);
         rooms.delete(roomId);
         loginfo(`Room ${roomId} deleted - all players left`);
@@ -510,10 +453,7 @@ export default function registerSocketHandlers(io) {
       }
       // If room is empty, clean up
       if (room.isEmpty()) {
-        // 🕰️ SYNCHRONIZATION: Stop game loop when room is empty
-        if (room.game) {
-          room.game.stopGameLoop();
-        }
+        // Clean up game resources
         games.delete(room.game.id);
         rooms.delete(roomId);
       }
@@ -585,9 +525,6 @@ function checkGameEndConditions(room, io, roomId) {
     
     console.log(`Game ended - all eliminated. Winner by highest score: ${winner.name} (${winner.score})`);
     
-    // 🕰️ SYNCHRONIZATION: Stop game loop when game ends
-    game.stopGameLoop();
-    
     io.to(roomId).emit('game-end', { 
       winnerId: winner.id, 
       winnerName: winner.name,
@@ -605,9 +542,6 @@ function checkGameEndConditions(room, io, roomId) {
     game.status = 'ended';
     
     console.log(`Game ended with winner: ${winner.name} (last player alive)`);
-    
-    // 🕰️ SYNCHRONIZATION: Stop game loop when game ends
-    game.stopGameLoop();
     
     io.to(roomId).emit('game-end', { 
       winnerId: winner.id, 

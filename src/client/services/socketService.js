@@ -139,11 +139,7 @@ const sendPlayerReady = (playerId) => {
   }
 };
 
-const requestNextPiece = (playerId) => {
-  if (socket) {
-    socket.emit('request-next-piece', { playerId });
-  }
-};
+// 🕰️ REMOVED: requestNextPiece - clients now handle piece generation locally
 
 // ================================
 // EVENT LISTENERS (INCOMING)
@@ -173,11 +169,7 @@ const onGameStarted = (callback) => {
   }
 };
 
-const onNextPiece = (callback) => {
-  if (socket) {
-    socket.on('next-piece', callback);
-  }
-};
+// 🕰️ REMOVED: onNextPiece - clients now handle piece generation locally
 
 const onPlayerMove = (callback) => {
   if (socket) {
@@ -244,7 +236,6 @@ const removeAllListeners = () => {
       'room-joined',
       'join-error', 
       'game-started',
-      'next-piece',
       'player-move',
       'player-spectrum',
       'penalty-lines',
@@ -287,13 +278,11 @@ const socketService = {
   sendScoreUpdate,
   sendPauseState,
   sendPlayerReady,
-  requestNextPiece,
   
   // Event listeners (incoming)
   onRoomJoined,
   onJoinError,
   onGameStarted,
-  onNextPiece,
   onPlayerMove,
   onPlayerSpectrum,
   onPenaltyLines,

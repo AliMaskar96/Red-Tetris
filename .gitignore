@@ -11,6 +11,7 @@ node_modules
 .env.test
 .env.test.local
 .nyc_output/
+coverage/
 
 ARCHITECTURE.md
 development-plan.md

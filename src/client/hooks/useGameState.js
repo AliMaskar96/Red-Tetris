@@ -18,8 +18,8 @@ import { getFromLocalStorage, saveToLocalStorage } from '../services/localStorag
  * Hook to manage core game state (board, pieces, score, etc.)
  */
 export const useGameState = () => {
-  // Generate a piece sequence at game start
-  const pieceSequence = useMemo(() => createPieceSequence(SEQUENCE_LENGTH, SEED), []);
+  // Generate a piece sequence at game start (can be updated for multiplayer)
+  const [pieceSequence, setPieceSequence] = useState(() => createPieceSequence(SEQUENCE_LENGTH, SEED));
   
   // Create empty board
   const emptyBoard = useMemo(() => createEmptyBoard(), []);
@@ -130,6 +130,7 @@ export const useGameState = () => {
   return {
     // State
     pieceSequence,
+    setPieceSequence,
     emptyBoard,
     pieceIndex,
     currentType,

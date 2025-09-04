@@ -54,6 +54,7 @@ const App = () => {
   // Destructure what we need from hooks
   const {
     pieceSequence,
+    setPieceSequence,
     emptyBoard,
     pieceIndex,
     currentType,
@@ -439,27 +440,37 @@ const App = () => {
       setIsJoiningRoom(false); // Stop loading state
     });
 
-    socketService.onGameStarted(({ gameId, currentPiece, nextPiece }) => {
-      console.log('Game started:', { gameId, currentPiece, nextPiece });
+    socketService.onGameStarted(({ gameId, sharedSeed }) => {
+      console.log('Game started:', { gameId, sharedSeed });
       
       // Fermer toutes les modales
       setShowCreateRoomModal(false);
       setShowJoinRoomModal(false);
       
-      // Set pieces from server
-      if (currentPiece) {
-        setCurrentType(currentPiece);
-        setShape(getTetromino(currentPiece).shape);
+      // Generate shared piece sequence using server seed for multiplayer synchronization
+      let gameSequence = pieceSequence; // Default to local sequence
+      if (sharedSeed !== undefined) {
+        // Generate deterministic sequence using shared seed
+        gameSequence = createPieceSequence(SEQUENCE_LENGTH, sharedSeed);
+        setPieceSequence(gameSequence); // Update the piece sequence state
+        console.log('🎲 Using shared seed for multiplayer:', sharedSeed);
+        console.log('🎲 Generated shared sequence:', gameSequence.slice(0, 10));
       }
-      if (nextPiece) {
-        setNextType(nextPiece);
-      }
+      
+      // Set initial pieces from shared sequence
+      const firstPiece = getNextPiece(gameSequence, 0);
+      const secondPiece = getNextPiece(gameSequence, 1);
+      
+      setCurrentType(firstPiece);
+      setNextType(secondPiece);
+      setShape(getTetromino(firstPiece).shape);
       
       setPlaying(true);
       setPaused(false); // Reset pause state
       setWaitingForRematch(false); // Reset rematch waiting state
-      // Reset game state for multiplayer but keep server pieces
-      const newShape = getTetromino(currentPiece || 'I').shape;
+      
+      // Reset game state for multiplayer with shared sequence
+      const newShape = getTetromino(firstPiece).shape;
       setPile(emptyBoard);
       setPieceIndex(0);
       setPos({ x: Math.floor((COLS - newShape[0].length) / 2), y: 0 });
@@ -485,30 +496,7 @@ const App = () => {
       console.log('🔄 Reset opponents spectrums for new game:', resetOpponentsSpectrums);
     });
 
-    socketService.onNextPiece(({ currentPiece, nextPiece }) => {
-      console.log('🎯 Next piece from server:', { currentPiece, nextPiece });
-      
-      // In multiplayer, always use pieces from server
-      if (isMultiplayer) {
-        if (currentPiece) {
-          setCurrentType(currentPiece);
-          const newShape = getTetromino(currentPiece).shape;
-          setShape(newShape);
-          const newStartX = Math.floor((COLS - newShape[0].length) / 2);
-          setPos({ x: newStartX, y: 0 });
-        }
-        if (nextPiece) {
-          setNextType(nextPiece);
-        }
-        setPendingNewPiece(false);
-        console.log(`🎯 Piece ready: ${currentPiece} at top`);
-      } else {
-        // Solo play - use old logic or ignore server pieces
-        if (currentPiece) {
-          setNextType(currentPiece);
-        }
-      }
-    });
+    // 🕰️ REMOVED: Next piece handling - now using client-side piece generation
 
     socketService.onPlayerEliminated(({ playerId, playerName, remainingPlayers }) => {
       console.log('Player eliminated:', { playerId, playerName, remainingPlayers });
@@ -787,17 +775,16 @@ const App = () => {
     return () => { if (gravityTimeoutRef.current) clearTimeout(gravityTimeoutRef.current); };
   }, [pos.y, selectedMode, playing]);
 
-  // 🕰️ SYNCHRONIZATION: Use client timing for solo, server timing for multiplayer
+  // 🕰️ RESTORED CLIENT CONTROL: Use client timing for both solo and multiplayer
   useEffect(() => {
-    // Only use client-side timing for solo games
-    if (!playing || gameOver || multiplayerGameEnded || paused || isMultiplayer) return;
+    if (!playing || gameOver || multiplayerGameEnded || paused) return;
     
     const interval = setInterval(() => {
       setPos(pos => {
         if (!checkCollision(shape, pile, pos.x, pos.y + 1)) {
           return { ...pos, y: pos.y + 1 };
         } else {
-          setPendingNewPiece(true); // Empêche toute entrée
+          setPendingNewPiece(true); // Prevent input during piece placement
           setPile(pile => {
             const merged = placePiece(shape, pile, pos.x, pos.y);
             let newBoard, linesCleared;
@@ -829,9 +816,12 @@ const App = () => {
             return newBoard;
           });
           setTimeout(() => {
-            // Handle new piece logic differently for solo vs multiplayer
-            if (isMultiplayer && currentPlayerId) {
-              // MULTIPLAYER: Request next piece from server
+            // Handle new piece logic - now using client-side generation for both solo and multiplayer
+            setPieceIndex(idx => {
+              const newIndex = idx + 1;
+              const newType = getNextPiece(pieceSequence, newIndex);
+              const newShape = getTetromino(newType).shape;
+              const newStartX = Math.floor((COLS - newShape[0].length) / 2);
               const merged = placePiece(shape, pile, pos.x, pos.y);
               let newBoard;
               if (selectedMode === GAME_MODES.GRAVITY) {
@@ -839,91 +829,30 @@ const App = () => {
               } else {
                 ({ newBoard } = clearLines(merged));
               }
-              
-              // Check for game over with current piece before requesting new one
-              const nextShape = getTetromino(nextType || 'I').shape;
-              const newStartX = Math.floor((COLS - nextShape[0].length) / 2);
-              
-              if (checkCollision(nextShape, newBoard, newStartX, 0)) {
-                console.log('Game over detected in multiplayer!');
+              if (checkCollision(newShape, newBoard, newStartX, 0)) {
                 setGameOver(true);
                 setPendingNewPiece(false);
-                socketService.sendGameOver(currentPlayerId);
-              } else {
-                // Request next piece from server - it will update our state via socket
-                socketService.requestNextPiece(currentPlayerId);
-              }
-            } else {
-              // SOLO: Use local piece generation
-              setPieceIndex(idx => {
-                const newIndex = idx + 1;
-                const newType = getNextPiece(pieceSequence, newIndex);
-                const newShape = getTetromino(newType).shape;
-                const newStartX = Math.floor((COLS - newShape[0].length) / 2);
-                const merged = placePiece(shape, pile, pos.x, pos.y);
-                let newBoard;
-                if (selectedMode === GAME_MODES.GRAVITY) {
-                  ({ newBoard } = require('../utils/gameLogic').clearLinesWithGravity(merged));
-                } else {
-                  ({ newBoard } = clearLines(merged));
+                if (isMultiplayer && currentPlayerId) {
+                  socketService.sendGameOver(currentPlayerId);
                 }
-                if (checkCollision(newShape, newBoard, newStartX, 0)) {
-                  setGameOver(true);
-                  setPendingNewPiece(false);
-                  return newIndex;
-                }
-                setCurrentType(newType);
-                setNextType(getNextPiece(pieceSequence, newIndex + 1));
-                setShape(newShape);
-                setPos({ x: newStartX, y: 0 });
-                setPendingNewPiece(false);
                 return newIndex;
-              });
-            }
+              }
+              setCurrentType(newType);
+              setNextType(getNextPiece(pieceSequence, newIndex + 1));
+              setShape(newShape);
+              setPos({ x: newStartX, y: 0 });
+              setPendingNewPiece(false);
+              return newIndex;
+            });
           }, 0);
           return pos;
         }
       });
-    }, isMultiplayer ? 500 : 500); // Same timing for now, but server sync will keep them aligned
+    }, 500); // Standard timing for all modes
     return () => clearInterval(interval);
-  }, [shape, pile, gameOver, playing, pieceSequence, selectedMode, multiplayerGameEnded, isMultiplayer, currentPlayerId, currentType, nextType, paused, syncCounter]);
+  }, [shape, pile, gameOver, playing, pieceSequence, selectedMode, multiplayerGameEnded, isMultiplayer, currentPlayerId, currentType, nextType, paused]);
 
-  // 🕰️ SYNCHRONIZATION: Simple sync counter for multiplayer
-  const [syncCounter, setSyncCounter] = useState(0);
-
-  // 🕰️ SYNCHRONIZATION: Use server ticks to trigger gravity in multiplayer
-  useEffect(() => {
-    if (!isMultiplayer || !socketService.socket) return;
-
-    const handleGravityTick = ({ tickCount, gameSpeed }) => {
-      console.log(`🕰️ Server gravity tick ${tickCount}`);
-      
-      // Only process if game is active
-      if (!playing || gameOver || multiplayerGameEnded || paused || pendingNewPiece) {
-        return;
-      }
-
-      // Trigger gravity drop
-      setPos(pos => {
-        if (!checkCollision(shape, pile, pos.x, pos.y + 1)) {
-          return { ...pos, y: pos.y + 1 };
-        } else {
-          // Piece hits bottom - let the normal interval handle piece placement
-          return pos;
-        }
-      });
-    };
-
-    console.log(`🕰️ Setting up server-controlled gravity for multiplayer`);
-    socketService.socket.on('gravity-tick', handleGravityTick);
-
-    return () => {
-      console.log(`🕰️ Cleaning up server gravity listener`);
-      if (socketService.socket) {
-        socketService.socket.off('gravity-tick', handleGravityTick);
-      }
-    };
-  }, [isMultiplayer, socketService.socket, playing, gameOver, multiplayerGameEnded, paused, pendingNewPiece, shape, pile]);
+  // 🕰️ REMOVED: Server-controlled synchronization - now using client-side timing for all modes
 
   // Update shape if currentType changes (e.g., after reset)
   useEffect(() => {

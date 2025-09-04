@@ -15,10 +15,7 @@ class Game {
     this.roomId = null; // Will be set when starting game
     this.initialBatchSize = 50; // Initial pieces to pre-generate
     
-    // 🕰️ SYNCHRONIZATION: Server-controlled timing
-    this.gameLoop = null; // Game loop interval
-    this.gameSpeed = 500; // ms between gravity drops
-    this.tickCount = 0; // Game ticks counter
+    // 🕰️ RESTORED: No server-controlled timing - clients handle their own game loops
   }
 
   addPlayer(player) {
@@ -32,58 +29,18 @@ class Game {
     this.players = this.players.filter(p => p.id !== playerId);
   }
 
-  startGame(roomId, initialPieces = null) {
+  startGame(roomId, sharedSeed = null) {
     this.status = 'playing';
     this.roomId = roomId;
     this.winner = null;
     
-    // Store initial batch of pieces or generate them
-    if (initialPieces && Array.isArray(initialPieces)) {
-      this.pieceSequence = initialPieces;
-    } else {
-      // Import here to avoid circular dependencies
-      const { generatePieceBatch } = require('../utils/pieceGenerator.js');
-      this.pieceSequence = generatePieceBatch(roomId, 0, this.initialBatchSize);
-    }
+    // Store shared seed for client-side piece generation
+    this.sharedSeed = sharedSeed || Math.floor(Math.random() * 1000000);
     
-    // Initialize pieces for all players
-    this.players.forEach(player => {
-      player.initializePieces(this.pieceSequence);
-    });
+    // No longer need to initialize pieces on server - clients handle this
   }
 
-  // Get next piece for a specific player using on-demand generation
-  distributeNextPieceForPlayer(playerId) {
-    const player = this.players.find(p => p.id === playerId);
-    if (!player) {
-      throw new Error(`Player ${playerId} not found in game`);
-    }
-    
-    // Check if we need to generate more pieces
-    const currentIndex = player.pieceIndex;
-    if (currentIndex >= this.pieceSequence.length - 10) {
-      // Generate more pieces when we're close to running out
-      const { generatePieceBatch } = require('../utils/pieceGenerator.js');
-      const newBatch = generatePieceBatch(this.roomId, this.pieceSequence.length, this.initialBatchSize);
-      this.pieceSequence.push(...newBatch);
-    }
-    
-    return player.advancePiece(this.pieceSequence);
-  }
-
-  // Get current piece for a specific player
-  getCurrentPieceForPlayer(playerId) {
-    const player = this.players.find(p => p.id === playerId);
-    if (!player) return null;
-    return player.currentPiece;
-  }
-
-  // Get next piece for a specific player (without advancing)
-  getNextPieceForPlayer(playerId) {
-    const player = this.players.find(p => p.id === playerId);
-    if (!player) return null;
-    return player.nextPiece;
-  }
+  // 🕰️ REMOVED: Server-side piece distribution - clients now handle piece generation locally
 
   // Legacy methods kept for compatibility
   distributeNextPiece() {
@@ -128,51 +85,9 @@ class Game {
     }
     this.status = 'ended';
     this.winner = playerId;
-    this.stopGameLoop(); // Stop the game loop when game ends
   }
 
-  // 🕰️ SYNCHRONIZATION: Start server-controlled game loop
-  startGameLoop(io, roomId) {
-    if (this.gameLoop) {
-      clearInterval(this.gameLoop);
-    }
-    
-    this.tickCount = 0;
-    this.gameLoop = setInterval(() => {
-      if (this.status !== 'playing') {
-        this.stopGameLoop();
-        return;
-      }
-      
-      this.tickCount++;
-      
-      // Broadcast gravity tick to all players
-      io.to(roomId).emit('gravity-tick', { 
-        tickCount: this.tickCount,
-        gameSpeed: this.gameSpeed 
-      });
-      
-      console.log(`🕰️ Game ${this.id} tick ${this.tickCount} sent to room ${roomId}`);
-    }, this.gameSpeed);
-    
-    console.log(`🕰️ Started game loop for game ${this.id} in room ${roomId} with ${this.gameSpeed}ms intervals`);
-  }
-
-  // 🕰️ SYNCHRONIZATION: Stop server-controlled game loop
-  stopGameLoop() {
-    if (this.gameLoop) {
-      clearInterval(this.gameLoop);
-      this.gameLoop = null;
-      console.log(`🕰️ Stopped game loop for game ${this.id}`);
-    }
-  }
-
-  // 🕰️ SYNCHRONIZATION: Update game speed (for increasing difficulty)
-  setGameSpeed(newSpeed) {
-    this.gameSpeed = newSpeed;
-    // The game loop will need to be restarted externally with new speed
-    // This avoids circular dependency issues
-  }
+  // 🕰️ REMOVED: Server-controlled game loop - clients now handle their own timing
 
   getAlivePlayers() {
     return this.players.filter(p => p.isAlive);

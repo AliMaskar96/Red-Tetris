@@ -59,7 +59,7 @@ describe('Socket Event Handlers', function() {
     });
   });
 
-  it('should allow the leader to start the game and receive game-started and next-piece', function(done) {
+  it('should allow the leader to start the game and receive game-started with shared seed', function(done) {
     clientSocket = io(params.server.url);
     
     clientSocket.on('connect', () => {
@@ -81,8 +81,8 @@ describe('Socket Event Handlers', function() {
       console.log('Second test: Game started event received:', data);
       try {
         expect(data).to.have.property('gameId');
-        expect(data).to.have.property('currentPiece');
-        expect(data).to.have.property('nextPiece');
+        expect(data).to.have.property('sharedSeed');
+        expect(data.sharedSeed).to.be.a('number');
         done();
       } catch (err) {
         done(err);

@@ -79,10 +79,3 @@ export function create(params) {
 }
 
 // This file is used by test helpers only - actual tests are in separate files
-
-// Simple test to satisfy Jest requirement
-describe('Server Index Helper', () => {
-  test('should export create function', () => {
-    expect(typeof create).toBe('function');
-  });
-});

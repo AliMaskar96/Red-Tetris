@@ -26,7 +26,7 @@ export const useURLNavigation = ({
   setJoinError,
   setUrlJoinStatus,
   setShowJoinRoomModal,
-  socketService
+  socketAPI
 }) => {
   
   // Parse URL hash on component mount and setup hash change listener
@@ -78,7 +78,7 @@ export const useURLNavigation = ({
       const nameToUse = playerName || getFromLocalStorage(STORAGE_KEYS.LAST_USERNAME, '');
       if (nameToUse) {
         setCurrentPlayerName(nameToUse);
-        socketService.joinRoom(roomId, nameToUse);
+        socketAPI.joinRoom(roomId, nameToUse);
       } else {
         // No username available, show join modal for user to enter name
         setIsJoiningRoom(false);
@@ -99,7 +99,7 @@ export const useURLNavigation = ({
     setJoinError,
     setUrlJoinStatus,
     setShowJoinRoomModal,
-    socketService
+    socketAPI
   ]);
 
   // Update URL when room changes

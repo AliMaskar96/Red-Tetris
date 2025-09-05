@@ -13,7 +13,7 @@ const GameHUD = ({
   onQuit,
   updateHighScores,
   updateGameStats,
-  socketService
+  socketAPI
 }) => {
   const handleQuit = () => {
     // Save score and stats before quitting
@@ -24,7 +24,7 @@ const GameHUD = ({
     
     // If in multiplayer, send game-over to server to eliminate player
     if (isMultiplayer && currentPlayerId) {
-      socketService.sendGameOver(currentPlayerId);
+      socketAPI.sendGameOver(currentPlayerId);
     }
     
     // Call the onQuit callback

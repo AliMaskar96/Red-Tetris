@@ -17,7 +17,7 @@ import GameOverModal from '../components/GameOverModal';
 import GameBoard from '../components/GameBoard';
 import GameHUD from '../components/GameHUD';
 import GameControls from '../components/GameControls';
-import socketService from '../services/socketService';
+import { useSocket } from '../providers/SocketProvider';
 import { getFromLocalStorage, saveToLocalStorage } from '../services/localStorageService';
 import { 
   ROWS, 
@@ -50,6 +50,9 @@ const App = () => {
   // Use custom hooks for state management
   const gameState = useGameState();
   const multiplayerState = useMultiplayerState();
+  
+  // Use socket middleware hook instead of direct socketService
+  const socketAPI = useSocket();
   
   // Destructure what we need from hooks
   const {
@@ -176,7 +179,7 @@ const App = () => {
     setJoinError,
     setUrlJoinStatus,
     setShowJoinRoomModal,
-    socketService
+    socketAPI
   });
 
   // Setup keyboard controls
@@ -204,7 +207,7 @@ const App = () => {
     setPaused,
     isMultiplayer,
     currentPlayerId,
-    socketService,
+    socketAPI,
     dropPieceToBottom
   });
   
@@ -223,21 +226,14 @@ const App = () => {
       // Ne pas définir currentRoomId ici - attendre la réponse du serveur
       setIsRoomLeader(true); // Creator is automatically the leader
       setJoinError(''); // Clear any previous errors
-      socketService.joinRoom(createRoomId, playerName, true); // true = isCreator
+      socketAPI.joinRoom(createRoomId, playerName, true); // true = isCreator
     } else {
       setJoinError(validation.error);
     }
   };
 
-  // Connect to server on component mount
-  useEffect(() => {
-    socketService.connect();
-    
-    return () => {
-      socketService.removeAllListeners();
-      socketService.disconnect();
-    };
-  }, []);
+  // Socket connection is now handled automatically by SocketProvider
+  // No need for manual connect/disconnect
 
   // Prevent scrolling on the main page
   useEffect(() => {
@@ -252,10 +248,10 @@ const App = () => {
   // Setup socket event listeners with current state values
   useEffect(() => {
     // Remove previous listeners to avoid duplicates
-    socketService.removeAllListeners();
+    socketAPI.removeAllListeners();
     
     // Setup socket event listeners
-    socketService.onRoomJoined(({ game, players }) => {
+    socketAPI.onRoomJoined(({ game, players }) => {
       console.log('Room joined:', { game, players });
       console.log('Current player name:', currentPlayerName);
       console.log('Join username:', joinUsername);
@@ -311,7 +307,7 @@ const App = () => {
       setIsJoiningRoom(false); // Stop loading state
     });
 
-    socketService.onJoinError(({ message }) => {
+    socketAPI.onJoinError(({ message }) => {
       console.error('Join error:', message);
       setJoinError(message);
       setIsJoiningRoom(false); // Stop loading state
@@ -324,7 +320,7 @@ const App = () => {
       }
     });
 
-    socketService.onGameStarted(({ gameId, sharedSeed }) => {
+    socketAPI.onGameStarted(({ gameId, sharedSeed }) => {
       console.log('Game started:', { gameId, sharedSeed });
       
       // Fermer toutes les modales
@@ -382,7 +378,7 @@ const App = () => {
 
     // 🕰️ REMOVED: Next piece handling - now using client-side piece generation
 
-    socketService.onPlayerEliminated(({ playerId, playerName, remainingPlayers }) => {
+    socketAPI.onPlayerEliminated(({ playerId, playerName, remainingPlayers }) => {
       console.log('Player eliminated:', { playerId, playerName, remainingPlayers });
       console.log('Current player ID:', currentPlayerId);
       setEliminatedPlayers(prev => [...prev, { id: playerId, name: playerName }]);
@@ -395,7 +391,7 @@ const App = () => {
       }
     });
 
-    socketService.onGameEnd(({ winnerId, winnerName, gameResult }) => {
+    socketAPI.onGameEnd(({ winnerId, winnerName, gameResult }) => {
       console.log('Game ended:', { winnerId, winnerName, gameResult });
       console.log('Setting game winner and multiplayer ended states');
       
@@ -430,7 +426,7 @@ const App = () => {
     });
 
     // Handle penalty lines received from server
-    socketService.onPenaltyLines(({ playerId, count }) => {
+    socketAPI.onPenaltyLines(({ playerId, count }) => {
       console.log('🚨 Received penalty lines:', { playerId, count, currentPlayerId });
       // Only apply penalty if it's for current player
       if (playerId === currentPlayerId) {
@@ -452,7 +448,7 @@ const App = () => {
     });
 
     // Handle board updates from other players (for spectrum display)
-    socketService.onPlayerBoardUpdated(({ playerId, board, spectrum, score }) => {
+    socketAPI.onPlayerBoardUpdated(({ playerId, board, spectrum, score }) => {
       console.log('📊 Player board updated:', { playerId, spectrum, score });
       if (playerId !== currentPlayerId) {
         console.log('🔥 Updating opponent spectrum:', { playerId, spectrum });
@@ -478,7 +474,7 @@ const App = () => {
     });
 
     // Handle score updates from other players
-    socketService.onPlayerScoreUpdated(({ playerId, score }) => {
+    socketAPI.onPlayerScoreUpdated(({ playerId, score }) => {
       console.log('📊 Received score update:', { playerId, score });
       if (playerId !== currentPlayerId) {
         setOpponentsScores(prev => ({
@@ -487,17 +483,17 @@ const App = () => {
         }));
       }
     });
-  }, [currentPlayerName, joinUsername, username, joinRoomId, createRoomId, userList, currentPlayerId]);
+  }, [currentPlayerName, joinUsername, username, joinRoomId, createRoomId, userList, currentPlayerId, socketAPI]);
 
   // Send score updates to server in multiplayer
   useEffect(() => {
     if (isMultiplayer && currentPlayerId && score >= 0) {
       console.log('📊 Sending score update:', { currentPlayerId, score });
-      socketService.sendScoreUpdate(currentPlayerId, score);
+      socketAPI.sendScoreUpdate(currentPlayerId, score);
       // Also send board update to include score in spectrum update
-      socketService.sendBoardUpdate(currentPlayerId, pile);
+      socketAPI.sendBoardUpdate(currentPlayerId, pile);
     }
-  }, [score, isMultiplayer, currentPlayerId, pile]);
+  }, [score, isMultiplayer, currentPlayerId, pile, socketAPI]);
 
   // Mock data for demonstration (now will be replaced by real multiplayer data)
   const mockPlayers = roomPlayers.length > 0 ? roomPlayers : [
@@ -529,7 +525,7 @@ const App = () => {
     saveToLocalStorage(STORAGE_KEYS.LAST_USERNAME, playerName);
     setIsJoiningRoom(true); // Show loading state
     setJoinError(''); // Clear previous errors
-    socketService.joinRoom(joinRoomId.trim().toUpperCase(), playerName);
+    socketAPI.joinRoom(joinRoomId.trim().toUpperCase(), playerName);
     // Ne pas fermer la modal - la garder ouverte pour voir les joueurs
   };
   
@@ -539,7 +535,7 @@ const App = () => {
   
   const handleStartMultiplayerGame = () => {
     if (isRoomLeader && currentGameId) {
-      socketService.startGame(currentGameId);
+      socketAPI.startGame(currentGameId);
     }
   };
   
@@ -564,7 +560,7 @@ const App = () => {
         const newPausedState = !prev;
         // Send pause state to server in multiplayer mode
         if (isMultiplayer && currentPlayerId) {
-          socketService.sendPauseState(currentPlayerId, newPausedState);
+          socketAPI.sendPauseState(currentPlayerId, newPausedState);
         }
         return newPausedState;
       });
@@ -654,12 +650,12 @@ const App = () => {
               setScore(newScore);
               setLines(l => l + linesCleared);
               if (isMultiplayer && currentPlayerId) {
-                socketService.sendLinesCleared(currentPlayerId, linesCleared, newBoard, newScore);
+                socketAPI.sendLinesCleared(currentPlayerId, linesCleared, newBoard, newScore);
               }
             }
             if (isMultiplayer && currentPlayerId) {
-              socketService.sendPiecePlaced(currentPlayerId, currentType, newBoard);
-              socketService.sendBoardUpdate(currentPlayerId, newBoard);
+              socketAPI.sendPiecePlaced(currentPlayerId, currentType, newBoard);
+              socketAPI.sendBoardUpdate(currentPlayerId, newBoard);
             }
             return newBoard;
           });
@@ -682,7 +678,7 @@ const App = () => {
                 setGameOver(true);
                 setPendingNewPiece(false);
                 if (isMultiplayer && currentPlayerId) {
-                  socketService.sendGameOver(currentPlayerId);
+                  socketAPI.sendGameOver(currentPlayerId);
                 }
                 return newIndex;
               }
@@ -702,7 +698,7 @@ const App = () => {
     return () => {
       clearInterval(interval);
     };
-  }, [shape, pile, gameOver, playing, pieceSequence, selectedMode, gravityDrop, multiplayerGameEnded, isMultiplayer, currentPlayerId, currentType, nextType, paused, score]);
+  }, [shape, pile, gameOver, playing, pieceSequence, selectedMode, gravityDrop, multiplayerGameEnded, isMultiplayer, currentPlayerId, currentType, nextType, paused, score, socketAPI]);
 
   // 🕰️ REMOVED: Server-controlled synchronization - now using client-side timing for all modes
 
@@ -762,7 +758,7 @@ const App = () => {
   const handleCreateRoomClose = () => {
     // Send leave room command to server if in a room
     if (currentPlayerId && currentRoomId) {
-      socketService.leaveRoom(currentPlayerId);
+      socketAPI.leaveRoom(currentPlayerId);
     }
     
     setShowCreateRoomModal(false);
@@ -783,7 +779,7 @@ const App = () => {
   const handleJoinRoomClose = () => {
     // Send leave room command to server if in a room
     if (currentPlayerId && currentRoomId) {
-      socketService.leaveRoom(currentPlayerId);
+      socketAPI.leaveRoom(currentPlayerId);
     }
     
     setShowJoinRoomModal(false);
@@ -844,7 +840,7 @@ const App = () => {
     
     // Send ready signal to server
     if (currentPlayerId) {
-      socketService.sendPlayerReady(currentPlayerId);
+      socketAPI.sendPlayerReady(currentPlayerId);
     }
     
     // Set waiting for rematch state
@@ -885,7 +881,7 @@ const App = () => {
     
     // Send leave room command to server
     if (currentPlayerId) {
-      socketService.leaveRoom(currentPlayerId);
+      socketAPI.leaveRoom(currentPlayerId);
     }
     
     // Reset multiplayer state and go to lobby
@@ -951,7 +947,7 @@ const App = () => {
             onQuit={handleQuitGame}
             updateHighScores={updateHighScores}
             updateGameStats={updateGameStats}
-            socketService={socketService}
+            socketAPI={socketAPI}
           />
           {/* Main Panel avec le jeu au centre */}
           <GameBoard

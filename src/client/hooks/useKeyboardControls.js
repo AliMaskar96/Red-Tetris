@@ -19,7 +19,7 @@ export const useKeyboardControls = ({
   setPaused,
   isMultiplayer,
   currentPlayerId,
-  socketService,
+  socketAPI,
   dropPieceToBottom
 }) => {
   // Key repeat state
@@ -51,9 +51,9 @@ export const useKeyboardControls = ({
       });
     }
     if (isMultiplayer && currentPlayerId && move) {
-      socketService.sendPlayerMove(currentPlayerId, move);
+      socketAPI.sendPlayerMove(currentPlayerId, move);
     }
-  }, [setPos, shape, pile, isMultiplayer, currentPlayerId, socketService]);
+  }, [setPos, shape, pile, isMultiplayer, currentPlayerId, socketAPI]);
 
   // Keydown handler with repeat logic
   const handleKeyDown = useCallback((e) => {
@@ -70,27 +70,27 @@ export const useKeyboardControls = ({
     } else if (e.key === 'ArrowUp') {
       setShape(currentShape => rotatePiece(currentShape, pile, pos.x, pos.y));
       if (isMultiplayer && currentPlayerId) {
-        socketService.sendPlayerMove(currentPlayerId, 'rotate');
+        socketAPI.sendPlayerMove(currentPlayerId, 'rotate');
       }
     } else if (e.key === ' ') {
       if (typeof dropPieceToBottom === 'function') {
         dropPieceToBottom();
       }
       if (isMultiplayer && currentPlayerId) {
-        socketService.sendPlayerMove(currentPlayerId, 'hardDrop');
+        socketAPI.sendPlayerMove(currentPlayerId, 'hardDrop');
       }
     } else if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
       if (playing && !gameOver && !multiplayerGameEnded) {
         setPaused(prev => {
           const newPausedState = !prev;
           if (isMultiplayer && currentPlayerId) {
-            socketService.sendPauseState(currentPlayerId, newPausedState);
+            socketAPI.sendPauseState(currentPlayerId, newPausedState);
           }
           return newPausedState;
         });
       }
     }
-  }, [gameOver, lockInput, pendingNewPiece, multiplayerGameEnded, paused, doMove, setShape, pile, pos.x, pos.y, isMultiplayer, currentPlayerId, socketService, dropPieceToBottom, playing]);
+  }, [gameOver, lockInput, pendingNewPiece, multiplayerGameEnded, paused, doMove, setShape, pile, pos.x, pos.y, isMultiplayer, currentPlayerId, socketAPI, dropPieceToBottom, playing]);
 
   // Keyup handler to clear repeat
   const handleKeyUp = useCallback((e) => {

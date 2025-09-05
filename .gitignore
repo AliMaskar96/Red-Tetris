@@ -13,6 +13,7 @@ node_modules
 .nyc_output/
 coverage/
 
+SOCKET_MIDDLEWARE.md
 ARCHITECTURE.md
 development-plan.md
 developement-tasks.md

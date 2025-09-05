@@ -159,132 +159,6 @@ const App = () => {
     getOpponents
   } = multiplayerState;
 
-  const [lockDelayActive, setLockDelayActive] = useState(false);
-  const lockDelayTimerRef = useRef(null);
-
-  // Helper to check if piece is colliding at current position
-  const isPieceColliding = useCallback(() => {
-    return checkCollision(shape, pile, pos.x, pos.y + 1);
-  }, [shape, pile, pos.x, pos.y]);
-
-  // Enhanced gravity/game tick with lock delay
-  useEffect(() => {
-    if (!playing || gameOver || multiplayerGameEnded || paused) return;
-    let interval;
-    interval = setInterval(() => {
-      setPos(currentPos => {
-        if (!checkCollision(shape, pile, currentPos.x, currentPos.y + 1)) {
-          // If not colliding, move piece down
-          if (lockDelayActive) {
-            setLockDelayActive(false);
-            if (lockDelayTimerRef.current) clearTimeout(lockDelayTimerRef.current);
-          }
-          return { ...currentPos, y: currentPos.y + 1 };
-        } else {
-          // If colliding, start lock delay if not already active
-          if (!lockDelayActive) {
-            setLockDelayActive(true);
-            if (lockDelayTimerRef.current) clearTimeout(lockDelayTimerRef.current);
-            lockDelayTimerRef.current = setTimeout(() => {
-              // After lock delay, lock the piece if still colliding
-              if (isPieceColliding()) {
-                setPendingNewPiece(true);
-                setPile(pile => {
-                  const merged = placePiece(shape, pile, pos.x, pos.y);
-                  let newBoard, linesCleared;
-                  if (selectedMode === GAME_MODES.GRAVITY) {
-                    ({ newBoard, linesCleared } = require('../utils/gameLogic').clearLinesWithGravity(merged));
-                  } else {
-                    ({ newBoard, linesCleared } = clearLines(merged));
-                  }
-                  if (linesCleared > 0) {
-                    const newScore = score + (linesCleared * 100);
-                    setScore(newScore);
-                    setLines(l => l + linesCleared);
-                    if (isMultiplayer && currentPlayerId) {
-                      socketService.sendLinesCleared(currentPlayerId, linesCleared, newBoard, newScore);
-                    }
-                  }
-                  if (isMultiplayer && currentPlayerId) {
-                    socketService.sendPiecePlaced(currentPlayerId, currentType, newBoard);
-                    socketService.sendBoardUpdate(currentPlayerId, newBoard);
-                  }
-                  return newBoard;
-                });
-                setTimeout(() => {
-                  // Handle new piece logic (solo/multiplayer)
-                  if (isMultiplayer && currentPlayerId) {
-                    // MULTIPLAYER: Request next piece from server
-                    const merged = placePiece(shape, pile, pos.x, pos.y);
-                    let newBoard;
-                    if (selectedMode === GAME_MODES.GRAVITY) {
-                      ({ newBoard } = require('../utils/gameLogic').clearLinesWithGravity(merged));
-                    } else {
-                      ({ newBoard } = clearLines(merged));
-                    }
-                    
-                    // Check for game over with current piece before requesting new one
-                    const nextShape = getTetromino(nextType || 'I').shape;
-                    const newStartX = Math.floor((COLS - nextShape[0].length) / 2);
-                    
-                    if (checkCollision(nextShape, newBoard, newStartX, 0)) {
-                      console.log('Game over detected in multiplayer!');
-                      setGameOver(true);
-                      setPendingNewPiece(false);
-                      socketService.sendGameOver(currentPlayerId);
-                    } else {
-                      // Request next piece from server - it will update our state via socket
-                      socketService.requestNextPiece(currentPlayerId);
-                    }
-                  } else {
-                    // SOLO: Use local piece generation
-                    setPieceIndex(idx => {
-                      const newIndex = idx + 1;
-                      const newType = getNextPiece(pieceSequence, newIndex);
-                      const newShape = getTetromino(newType).shape;
-                      const newStartX = Math.floor((COLS - newShape[0].length) / 2);
-                      const merged = placePiece(shape, pile, pos.x, pos.y);
-                      let newBoard;
-                      if (selectedMode === GAME_MODES.GRAVITY) {
-                        ({ newBoard } = require('../utils/gameLogic').clearLinesWithGravity(merged));
-                      } else {
-                        ({ newBoard } = clearLines(merged));
-                      }
-                      if (checkCollision(newShape, newBoard, newStartX, 0)) {
-                        setGameOver(true);
-                        setPendingNewPiece(false);
-                        return newIndex;
-                      }
-                      setCurrentType(newType);
-                      setNextType(getNextPiece(pieceSequence, newIndex + 1));
-                      setShape(newShape);
-                      setPos({ x: newStartX, y: 0 });
-                      setPendingNewPiece(false);
-                      return newIndex;
-                    });
-                  }
-                }, 0);
-                setLockDelayActive(false);
-              }
-            }, 500); // 500ms lock delay
-          }
-          return currentPos;
-        }
-      });
-    }, 500);
-    return () => {
-      clearInterval(interval);
-      if (lockDelayTimerRef.current) clearTimeout(lockDelayTimerRef.current);
-    };
-  }, [shape, pile, gameOver, playing, selectedMode, gravityDrop, multiplayerGameEnded, paused, lockDelayActive, isPieceColliding, pos.x, pos.y, currentType, nextType, score, isMultiplayer, currentPlayerId]);
-
-  // If the player moves/rotates the piece during lock delay and it is no longer colliding, cancel lock delay
-  useEffect(() => {
-    if (lockDelayActive && !isPieceColliding()) {
-      setLockDelayActive(false);
-      if (lockDelayTimerRef.current) clearTimeout(lockDelayTimerRef.current);
-    }
-  }, [pos.x, pos.y, shape, pile, lockDelayActive, isPieceColliding]);
 
   // Setup URL navigation
   useURLNavigation({
@@ -405,9 +279,12 @@ const App = () => {
         setCurrentRoomId(createRoomId);
       }
       
-      // Update URL join status
+      // Update URL join status and show modal for URL joins
       if (urlJoinStatus === 'joining') {
         setUrlJoinStatus('success');
+        // Show join room modal so user can see they've successfully joined
+        setShowJoinRoomModal(true);
+        console.log('🔗 URL join successful - showing join room modal');
       }
       
       // Use the current player we found earlier
@@ -438,6 +315,13 @@ const App = () => {
       console.error('Join error:', message);
       setJoinError(message);
       setIsJoiningRoom(false); // Stop loading state
+      
+      // If this was a URL join attempt, show the modal with error
+      if (urlJoinStatus === 'joining') {
+        setUrlJoinStatus('error');
+        setShowJoinRoomModal(true);
+        console.log('🔗 URL join failed - showing join room modal with error');
+      }
     });
 
     socketService.onGameStarted(({ gameId, sharedSeed }) => {
@@ -695,42 +579,6 @@ const App = () => {
     setPaused(false);
   };
 
-  // Descente automatique de la pièce et fixation
-  useEffect(() => {
-    if (!playing || gameOver || multiplayerGameEnded || paused) return;
-    let interval;
-    if (selectedMode === GAME_MODES.GRAVITY) {
-      if (gravityDrop) {
-        interval = setInterval(() => {
-          setPos(pos => {
-            if (!checkCollision(shape, pile, pos.x, pos.y + 1)) {
-              return { ...pos, y: pos.y + 1 };
-            }
-            return pos;
-          });
-        }, 20); // Gravity+ rapide
-      } else {
-        interval = setInterval(() => {
-          setPos(pos => {
-            if (!checkCollision(shape, pile, pos.x, pos.y + 1)) {
-              return { ...pos, y: pos.y + 1 };
-            }
-            return pos;
-          });
-        }, 500); // Gravity+ lent (avant gravityDrop)
-      }
-    } else {
-      interval = setInterval(() => {
-        setPos(pos => {
-          if (!checkCollision(shape, pile, pos.x, pos.y + 1)) {
-            return { ...pos, y: pos.y + 1 };
-          }
-          return pos;
-        });
-      }, 500); // Classic et Invisible
-    }
-    return () => clearInterval(interval);
-  }, [shape, pile, gameOver, playing, selectedMode, gravityDrop, multiplayerGameEnded, paused]);
 
   // Gravity+ mode: after each new piece appears, after 2s it drops INSTANTLY to the bottom
   useEffect(() => {
@@ -775,18 +623,26 @@ const App = () => {
     return () => { if (gravityTimeoutRef.current) clearTimeout(gravityTimeoutRef.current); };
   }, [pos.y, selectedMode, playing]);
 
-  // 🕰️ RESTORED CLIENT CONTROL: Use client timing for both solo and multiplayer
+  // 🕰️ UNIFIED PIECE MOVEMENT: Handle all game modes with single timing logic and lock delay
   useEffect(() => {
     if (!playing || gameOver || multiplayerGameEnded || paused) return;
     
+    // Determine interval timing based on game mode
+    let intervalTime = 500; // Default for Classic and Invisible modes
+    if (selectedMode === GAME_MODES.GRAVITY) {
+      intervalTime = gravityDrop ? 20 : 500; // Fast when gravity drops, normal otherwise
+    }
+    
     const interval = setInterval(() => {
-      setPos(pos => {
-        if (!checkCollision(shape, pile, pos.x, pos.y + 1)) {
-          return { ...pos, y: pos.y + 1 };
+      setPos(currentPos => {
+        if (!checkCollision(shape, pile, currentPos.x, currentPos.y + 1)) {
+          // If not colliding, move piece down
+          return { ...currentPos, y: currentPos.y + 1 };
         } else {
-          setPendingNewPiece(true); // Prevent input during piece placement
-          setPile(pile => {
-            const merged = placePiece(shape, pile, pos.x, pos.y);
+          // If colliding, immediately lock the piece
+          setPendingNewPiece(true);
+          setPile(currentPile => {
+            const merged = placePiece(shape, currentPile, currentPos.x, currentPos.y);
             let newBoard, linesCleared;
             if (selectedMode === GAME_MODES.GRAVITY) {
               ({ newBoard, linesCleared } = require('../utils/gameLogic').clearLinesWithGravity(merged));
@@ -797,32 +653,25 @@ const App = () => {
               const newScore = score + (linesCleared * 100);
               setScore(newScore);
               setLines(l => l + linesCleared);
-              
-              // Send lines cleared to server in multiplayer WITH the new score
               if (isMultiplayer && currentPlayerId) {
-                console.log(`🎯 Sending lines cleared: ${linesCleared} lines by player ${currentPlayerId} with new score: ${newScore}`);
                 socketService.sendLinesCleared(currentPlayerId, linesCleared, newBoard, newScore);
               }
             }
-            
-            // Send piece placed to server in multiplayer
             if (isMultiplayer && currentPlayerId) {
-              console.log(`🔧 Sending piece placed with board update for spectrum calculation`);
               socketService.sendPiecePlaced(currentPlayerId, currentType, newBoard);
-              // Also explicitly send board update for spectrum calculation
               socketService.sendBoardUpdate(currentPlayerId, newBoard);
             }
-            
             return newBoard;
           });
+          
+          // Handle new piece logic - now using client-side generation for both solo and multiplayer
           setTimeout(() => {
-            // Handle new piece logic - now using client-side generation for both solo and multiplayer
             setPieceIndex(idx => {
               const newIndex = idx + 1;
               const newType = getNextPiece(pieceSequence, newIndex);
               const newShape = getTetromino(newType).shape;
               const newStartX = Math.floor((COLS - newShape[0].length) / 2);
-              const merged = placePiece(shape, pile, pos.x, pos.y);
+              const merged = placePiece(shape, pile, currentPos.x, currentPos.y);
               let newBoard;
               if (selectedMode === GAME_MODES.GRAVITY) {
                 ({ newBoard } = require('../utils/gameLogic').clearLinesWithGravity(merged));
@@ -845,12 +694,15 @@ const App = () => {
               return newIndex;
             });
           }, 0);
-          return pos;
+          
+          return currentPos; // Don't change position when colliding
         }
       });
-    }, 500); // Standard timing for all modes
-    return () => clearInterval(interval);
-  }, [shape, pile, gameOver, playing, pieceSequence, selectedMode, multiplayerGameEnded, isMultiplayer, currentPlayerId, currentType, nextType, paused]);
+    }, intervalTime);
+    return () => {
+      clearInterval(interval);
+    };
+  }, [shape, pile, gameOver, playing, pieceSequence, selectedMode, gravityDrop, multiplayerGameEnded, isMultiplayer, currentPlayerId, currentType, nextType, paused, score]);
 
   // 🕰️ REMOVED: Server-controlled synchronization - now using client-side timing for all modes
 
@@ -1300,6 +1152,7 @@ const App = () => {
             isRoomLeader={isRoomLeader}
             onJoinRoom={handleJoinRoom}
             onStartGame={handleStartMultiplayerGame}
+            urlJoinStatus={urlJoinStatus}
           />
 
           {/* Game Over Modals */}

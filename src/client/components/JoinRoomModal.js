@@ -14,7 +14,8 @@ const JoinRoomModal = ({
   roomPlayers,
   isRoomLeader,
   onJoinRoom,
-  onStartGame
+  onStartGame,
+  urlJoinStatus = ''
 }) => {
   if (!isOpen) return null;
 
@@ -64,6 +65,19 @@ const JoinRoomModal = ({
             textAlign: 'center'
           }}>
             🔄 Ready for rematch! Waiting for the leader to start the new game...
+          </div>
+        ) : urlJoinStatus === 'success' && currentRoomId ? (
+          <div style={{
+            fontSize: 16, 
+            color: '#4CAF50', 
+            marginBottom: 20, 
+            padding: '12px',
+            backgroundColor: 'rgba(76, 175, 80, 0.1)',
+            borderRadius: 8,
+            border: '1px solid rgba(76, 175, 80, 0.3)',
+            textAlign: 'center'
+          }}>
+            🔗 Successfully joined via URL! Welcome to the room.
           </div>
         ) : (
           <div style={{

@@ -76,7 +76,6 @@ const GameOverModal = ({
             // Solo mode buttons
             <div style={{display: 'flex', gap: 20, marginTop: 32, justifyContent: 'center'}}>
               <button onClick={onReplay} style={{
-                marginTop: 32, 
                 padding: '14px 40px', 
                 fontSize: 22, 
                 borderRadius: 10, 
@@ -89,9 +88,8 @@ const GameOverModal = ({
               }}>Play Again</button>
               
               <button onClick={onGoToLobby} style={{
-                marginTop: 18, 
-                padding: '12px 36px', 
-                fontSize: 20, 
+                padding: '14px 40px', 
+                fontSize: 22, 
                 borderRadius: 10, 
                 background: '#007bff', 
                 color: '#fff', 

@@ -1,5 +1,5 @@
 // Test de la fonction addPenaltyLines
-import { addPenaltyLines, clearLines } from './src/client/utils/gameLogic.js';
+import { addPenaltyLines, clearLines } from '../src/client/utils/gameLogic.js';
 
 // Créer un plateau de test (20x10)
 const createTestBoard = () => {
